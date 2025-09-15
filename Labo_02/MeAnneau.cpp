@@ -9,7 +9,7 @@ void Anneau::Setup() {
 }
 
 void Anneau::setColor(int firstLed, int lastLed, int r, int g, int b) {
-  for (int i = 1; i <= LEDNUM; i++) {
+  for (int i = 0; i < LEDNUM; i++) {
     bool inRange = false;
 
     if (firstLed <= lastLed) {

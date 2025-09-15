@@ -36,7 +36,7 @@ void Conduire::Stop() {
 void Conduire::Forward(int speed) {
   digitalWrite(_m1_in2, LOW);
   digitalWrite(_m1_in1, HIGH);
-  analogWrite(_m1_pwm, speed);
+  analogWrite(_m1_pwm, speed + 10);
 
   digitalWrite(_m2_in2, HIGH);
   digitalWrite(_m2_in1, LOW);
@@ -51,6 +51,7 @@ void Conduire::Backward(int speed) {
   digitalWrite(_m2_in2, LOW);
   digitalWrite(_m2_in1, HIGH);
   analogWrite(_m2_pwm, speed);
+  Serial.println("Je recule de la classe");
 }
 
 void Conduire::TurnRight(int angle, int speed) {
@@ -83,8 +84,8 @@ void Conduire::TurnLeft(int angle, int speed) {
   if (target < -180) target += 360;
 
   
-  digitalWrite(_m1_in1, LOW);
-  digitalWrite(_m1_in2, HIGH);
+  digitalWrite(_m1_in1, HIGH);
+  digitalWrite(_m1_in2, LOW);
   analogWrite(_m1_pwm, speed);
   
   digitalWrite(_m2_in1, HIGH);

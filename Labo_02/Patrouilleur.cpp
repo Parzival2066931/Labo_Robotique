@@ -16,8 +16,12 @@ void Patrouille::Setup() {
   _stopDelay = 2000;
   _printDelay = 250;
   _rondeDelay = 10000;
+  _rondeStateDelay = 2000;
+  _blinkDelay = 400;
   _turnAngle = 90;
   _turnSpeed = 100;
+
+  _blinkState = false;
 
   _state = NORMAL;
 
@@ -54,21 +58,44 @@ void Patrouille::setSlowSpeed(int speed) {
   _slowSpeed = speed;
 }
 
+void Patrouille::_rondeState() {
+  static bool firstTime = true;
+
+  if(firstTime) {
+    firstTime = false;
+    _lastBlink = _currentTime;
+    _lastSuccess = _currentTime;
+    Serial.println("Entering in: RONDE");
+  }
+
+  if(_currentTime - _lastBlink < _blinkDelay) return;
+  _blinkState = !_blinkState;
+
+  if(_blinkState) {
+    _anneau.fullLeds(0, 100, 0);
+  }
+  else {
+    _anneau.fullLeds(0, 0, 0);
+  }
+
+  if(_currentTime - _lastSuccess < _rondeStateDelay) return;
+  _state = NORMAL;
+}
+
 void Patrouille::_normalState() {
   static bool firstTime = true;
 
-  static bool transition = _dist < _slowDist;
-  static bool transitionRonde = _dist > _slowDist;
-  
-
+  bool transition = _dist < _slowDist;
+  bool transitionRonde = _dist > _slowDist;
 
   if(firstTime) {
     firstTime = false;
     _lastRonde = _currentTime;
+    Serial.println("Entering in: NORMAL");
   }
 
-  _anneau.setFirstLed(4);
-  _anneau.setLastLed(10);  
+  _anneau.setFirstLed(5);
+  _anneau.setLastLed(11);  
   _anneau.halfLeds(0, 10, 0);
 
   _conduit.Forward(_normalSpeed);
@@ -87,11 +114,20 @@ void Patrouille::_normalState() {
 }
 
 void Patrouille::_slowState() {
-  static bool upTransition = _dist > _slowDist;
-  static bool downTransition = _dist < _dangerDist;
+  static bool firstTime = true;
 
-  _anneau.setFirstLed(10);
-  _anneau.setLastLed(4);  
+  bool upTransition = _dist > _slowDist;
+  bool downTransition = _dist < _dangerDist;
+
+  if(firstTime) {
+    firstTime = false;
+    Serial.println("Entering in: RALENTI");
+
+  }
+
+
+  _anneau.setFirstLed(11);
+  _anneau.setLastLed(5);  
   _anneau.halfLeds(0, 0, 10);
   
   _conduit.Forward(_slowSpeed);
@@ -102,24 +138,33 @@ void Patrouille::_slowState() {
 
 void Patrouille::_dangerState() {
   static bool firstTime = true;
-  static bool transition = _dist > _dangerDist;
+  bool transition = _dist > _dangerDist;
 
   if(firstTime) {
     firstTime = false;
 
     _lastStop = _currentTime;
-    _lastBackward = _currentTime;
+    _lastBackward = 0;
+    _hasTurned = false;
+    Serial.println("Entering in: DANGER");
+    _conduit.Stop();
+    _anneau.fullLeds(10, 0, 0);
   }
-
-  _anneau.fullLeds(10, 0, 0);
   
-  _conduit.Stop();
   if (_currentTime - _lastStop < _stopDelay) return;
-  
-  _conduit.Backward(_slowSpeed);
+  Serial.println("Je recule");
+  if (_lastBackward == 0) {
+    _lastBackward = _currentTime;
+    _conduit.Backward(_slowSpeed);
+    return;
+  }
   if(_currentTime - _lastBackward < _backwardDelay) return;
-  
-  _conduit.TurnLeft(_turnAngle, _turnSpeed);
+    _conduit.Stop();
+  if(!_hasTurned) {
+    Serial.println("Je tourne");
+    _conduit.TurnLeft(_turnAngle, _turnSpeed);
+    _hasTurned = true;
+  }
 
   if(transition) {
     firstTime = true;

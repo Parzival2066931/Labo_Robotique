@@ -31,7 +31,8 @@ int Sonar::getMaxDist() const { return _maxDist; }
 void Sonar::_printDist() const {
   
   Serial.print("Distance: ");
-  Serial.println(_dist);
+  Serial.print(_dist);
+  Serial.println(" cm");
 }
 
 void Sonar::update() {

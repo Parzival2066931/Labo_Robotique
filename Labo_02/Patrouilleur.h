@@ -20,10 +20,19 @@ class Patrouille {
     int _stopDelay;
     int _printDelay;
     int _rondeDelay;
+    int _blinkDelay;
+    int _rondeStateDelay;
     
     unsigned long _currentTime;
     unsigned long _lastStop;
     unsigned long _lastBackward;
+    unsigned long _lastRonde;
+    unsigned long _lastBlink;
+    unsigned long _lastSuccess;
+
+    bool _blinkState;
+    bool _hasTurned;
+
 
     int _turnAngle;
     int _turnSpeed;
