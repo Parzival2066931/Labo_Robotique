@@ -5,16 +5,27 @@ Anneau::Anneau(): _led(0, LEDNUM) {}
 
 void Anneau::Setup() {
   _led.setpin(LED_PIN);
-
-  _firstLed = 4;
-  _lastLed = 10;
+  Serial.println("Setup completed for [Anneau]");
 }
 
 void Anneau::setColor(int firstLed, int lastLed, int r, int g, int b) {
-  for( int i = 0; i < LEDNUM; i++) {
+  for (int i = 1; i <= LEDNUM; i++) {
+    bool inRange = false;
 
-    if(i >= firstLed && i <= lastLed) {
+    if (firstLed <= lastLed) {
+
+      inRange = (i >= firstLed && i <= lastLed);
+    } else {
+      
+      inRange = (i >= firstLed || i <= lastLed);
+    }
+
+    if (inRange) {
+
       _led.setColorAt(i, r, g, b);
+    } else {
+      
+      _led.setColorAt(i, 0, 0, 0);
     }
   }
 }
@@ -29,5 +40,10 @@ void Anneau::halfLeds(int r, int g, int b) {
   _led.show();
 }
 
+void Anneau::setFirstLed(int led) {
+  _firstLed = led;
+}
 
-
+void Anneau::setLastLed(int led) {
+  _lastLed = led;
+}

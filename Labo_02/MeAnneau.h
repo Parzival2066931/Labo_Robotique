@@ -1,5 +1,6 @@
-#include <MeAuriga.h>
 #pragma once
+#include <MeAuriga.h>
+
 
 #define ALL_LEDS 0
 #define LEDNUM  12 
@@ -17,4 +18,6 @@ class Anneau {
     void fullLeds(int r, int g, int b);
     void halfLeds(int r, int g, int b);
     void setColor(int firstLed, int lastLed, int r, int g, int b);
+    void setFirstLed(int led);
+    void setLastLed(int led);
 };

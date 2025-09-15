@@ -1,5 +1,6 @@
-#include <MeAuriga.h>
 #pragma once
+#include <MeAuriga.h>
+
 
 class Sonar {
 private:

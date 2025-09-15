@@ -1,5 +1,6 @@
-#include <MeAuriga.h>
 #pragma once
+#include <MeAuriga.h>
+
 
 #define GYRO_ADRESS 0x69
 
@@ -27,10 +28,11 @@ class Conduire {
   public:
 
     Conduire();
-    void TurnRight(int speed);
+    void Stop();
+    void TurnRight(int angle, int speed);
     void Forward(int speed);
     void Backward(int speed);
-    void TurnLeft(int speed);
+    void TurnLeft(int angle, int speed);
     void UTurn(int speed);
     void Setup();
     void SetMaxSpeed(int speed);
