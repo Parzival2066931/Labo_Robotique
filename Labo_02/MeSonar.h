@@ -4,7 +4,7 @@
 
 class Sonar {
 private:
-  void _printDist() const;
+  
   unsigned long _currentTime;
   unsigned long _lastUpdate;
   int _lastDist;
@@ -16,12 +16,13 @@ private:
 
 public:
   Sonar();
-  void setMinDist(int dist);
-  void setMaxDist(int dist);
-  void setPrintDelay(int delay);
-  int getDist();
-  int getMinDist() const;
-  int getMaxDist() const;
-  void update();
+  void printDist() const;
+  void SetMinDist(int dist);
+  void SetMaxDist(int dist);
+  void SetPrintDelay(int delay);
+  int GetDist();
+  int GetMinDist() const;
+  int GetMaxDist() const;
+  void Update();
   void Setup();
 };

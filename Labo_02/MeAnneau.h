@@ -17,7 +17,7 @@ class Anneau {
     void Setup();
     void fullLeds(int r, int g, int b);
     void halfLeds(int r, int g, int b);
-    void setColor(int firstLed, int lastLed, int r, int g, int b);
-    void setFirstLed(int led);
-    void setLastLed(int led);
+    void SetColor(int firstLed, int lastLed, int r, int g, int b);
+    void SetFirstLed(int led);
+    void SetLastLed(int led);
 };

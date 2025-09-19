@@ -1,5 +1,5 @@
 #pragma once
-#include "MeConduire.h"
+#include "MeConducteur.h"
 #include "MeSonar.h"
 #include "MeAnneau.h"
 
@@ -41,7 +41,8 @@ class Patrouille {
     int _maxSpeed;
     
     RobotState _state;
-    Conduire _conduit;
+    ConducteurState _cState;
+    Conducteur _conducteur;
     Anneau _anneau;
     Sonar _sonar;
 
@@ -50,18 +51,19 @@ class Patrouille {
     void _dangerState();
     void _rondeState();
 
-    void _printTask();
+    
 
 
   public:
     Patrouille();
 
-    void setBackwardDelay(int delay);
-    void setStopDelay(int delay);
-    void setPrintDelay(int delay);
-    void setTurnAngle(int angle);
-    void setNormalSpeed(int speed);
-    void setSlowSpeed(int speed);
+    void SetBackwardDelay(int delay);
+    void SetStopDelay(int delay);
+    void SetPrintDelay(int delay);
+    void SetTurnAngle(int angle);
+    void SetNormalSpeed(int speed);
+    void SetSlowSpeed(int speed);
+    void PrintTask();
     void Update();
     void Setup();
 };

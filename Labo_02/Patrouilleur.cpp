@@ -2,11 +2,11 @@
 #include "Patrouilleur.h"
 
 
-Patrouille::Patrouille():  _sonar(), _conduit(), _anneau() {}
-
+Patrouille::Patrouille()
+  : _sonar(), _conducteur(), _anneau() {}
 void Patrouille::Setup() {
   _sonar.Setup();
-  _conduit.Setup();
+  _conducteur.Setup();
   _anneau.Setup();
 
   _minDist = 0;
@@ -23,62 +23,66 @@ void Patrouille::Setup() {
 
   _blinkState = false;
 
-  _state = NORMAL;
-
   _maxSpeed = 255;
   _normalSpeed = _maxSpeed * 0.7;
   _slowSpeed = _maxSpeed * 0.5;
 
-  _sonar.setPrintDelay(_printDelay);
+  _state = NORMAL;
+
+  _conducteur.SetState(STOP);
+  _conducteur.SetAngle(_turnAngle);
+  _conducteur.SetTurnSpeed(_normalSpeed);
+
+  _sonar.SetPrintDelay(_printDelay);
 
   Serial.println("Setup completed for [Patrouille]");
 }
 
-void Patrouille::setBackwardDelay(int delay) {
+void Patrouille::SetBackwardDelay(int delay) {
   _backwardDelay = delay;
 }
-void Patrouille::setStopDelay(int delay) {
+
+void Patrouille::SetStopDelay(int delay) {
   _stopDelay = delay;
 }
 
-void Patrouille::setPrintDelay(int delay) {
+void Patrouille::SetPrintDelay(int delay) {
   _printDelay = delay;
-  _sonar.setPrintDelay(_printDelay);
+  _sonar.SetPrintDelay(_printDelay);
 }
 
-void Patrouille::setTurnAngle(int angle) {
+void Patrouille::SetTurnAngle(int angle) {
   _turnAngle = angle;
 }
 
-void Patrouille::setNormalSpeed(int speed) {
+void Patrouille::SetNormalSpeed(int speed) {
   _normalSpeed = speed;
 }
 
-void Patrouille::setSlowSpeed(int speed) {
+void Patrouille::SetSlowSpeed(int speed) {
   _slowSpeed = speed;
 }
 
 void Patrouille::_rondeState() {
   static bool firstTime = true;
 
-  if(firstTime) {
+  if (firstTime) {
     firstTime = false;
     _lastBlink = _currentTime;
     _lastSuccess = _currentTime;
     Serial.println("Entering in: RONDE");
   }
 
-  if(_currentTime - _lastBlink < _blinkDelay) return;
+  if (_currentTime - _lastBlink < _blinkDelay) return;
   _blinkState = !_blinkState;
 
-  if(_blinkState) {
+  if (_blinkState) {
     _anneau.fullLeds(0, 100, 0);
-  }
-  else {
+  } else {
     _anneau.fullLeds(0, 0, 0);
   }
 
-  if(_currentTime - _lastSuccess < _rondeStateDelay) return;
+  if (_currentTime - _lastSuccess < _rondeStateDelay) return;
   _state = NORMAL;
 }
 
@@ -88,26 +92,28 @@ void Patrouille::_normalState() {
   bool transition = _dist < _slowDist;
   bool transitionRonde = _dist > _slowDist;
 
-  if(firstTime) {
+  if (firstTime) {
     firstTime = false;
+
     _lastRonde = _currentTime;
     Serial.println("Entering in: NORMAL");
   }
 
-  _anneau.setFirstLed(5);
-  _anneau.setLastLed(11);  
+  _anneau.SetFirstLed(5);
+  _anneau.SetLastLed(11);
   _anneau.halfLeds(0, 10, 0);
 
-  _conduit.Forward(_normalSpeed);
+  _conducteur.SetSpeed(_normalSpeed);
+  _conducteur.SetState(FORWARD);
 
-  if(transition) {
+  if (transition) {
     firstTime = true;
     _state = RALENTI;
   }
 
-  if(_currentTime - _lastRonde < _rondeDelay) return;
+  if (_currentTime - _lastRonde < _rondeDelay) return;
 
-  if(transitionRonde) {
+  if (transitionRonde) {
     firstTime = true;
     _state = RONDE;
   }
@@ -119,54 +125,52 @@ void Patrouille::_slowState() {
   bool upTransition = _dist > _slowDist;
   bool downTransition = _dist < _dangerDist;
 
-  if(firstTime) {
+  if (firstTime) {
     firstTime = false;
     Serial.println("Entering in: RALENTI");
-
   }
 
-
-  _anneau.setFirstLed(11);
-  _anneau.setLastLed(5);  
+  _anneau.SetFirstLed(11);
+  _anneau.SetLastLed(5);
   _anneau.halfLeds(0, 0, 10);
-  
-  _conduit.Forward(_slowSpeed);
 
-  if(upTransition) _state = NORMAL;
-  if(downTransition) _state = DANGER;
+  _conducteur.SetSpeed(_slowSpeed);
+  _conducteur.SetState(FORWARD);
+
+  if (upTransition) _state = NORMAL;
+  if (downTransition) _state = DANGER;
 }
 
 void Patrouille::_dangerState() {
   static bool firstTime = true;
   bool transition = _dist > _dangerDist;
 
-  if(firstTime) {
+  if (firstTime) {
     firstTime = false;
 
     _lastStop = _currentTime;
     _lastBackward = 0;
     _hasTurned = false;
     Serial.println("Entering in: DANGER");
-    _conduit.Stop();
+    _conducteur.SetState(STOP);
     _anneau.fullLeds(10, 0, 0);
   }
-  
+
   if (_currentTime - _lastStop < _stopDelay) return;
-  Serial.println("Je recule");
+
   if (_lastBackward == 0) {
     _lastBackward = _currentTime;
-    _conduit.Backward(_slowSpeed);
+    _conducteur.SetSpeed(_slowSpeed);
+    _conducteur.SetState(BACKWARD);
     return;
   }
-  if(_currentTime - _lastBackward < _backwardDelay) return;
-    _conduit.Stop();
-  if(!_hasTurned) {
-    Serial.println("Je tourne");
-    _conduit.TurnLeft(_turnAngle, _turnSpeed);
-    _hasTurned = true;
-  }
 
-  if(transition) {
+  if (_currentTime - _lastBackward < _backwardDelay) return;
+
+  _conducteur.SetState(STOP);
+  _conducteur.SetState(LTURNING);
+
+  if (transition) {
     firstTime = true;
     _state = RALENTI;
   }
@@ -175,10 +179,11 @@ void Patrouille::_dangerState() {
 void Patrouille::Update() {
   _currentTime = millis();
 
-  _sonar.update();
-  _dist = _sonar.getDist();
+  _conducteur.Update();
+  _sonar.Update();
+  _dist = _sonar.GetDist();
 
-  switch(_state) {
+  switch (_state) {
     case NORMAL:
       _normalState();
       break;
@@ -192,4 +197,8 @@ void Patrouille::Update() {
       _rondeState();
       break;
   }
+}
+
+void Patrouille::PrintTask() {
+  _sonar.printDist();
 }

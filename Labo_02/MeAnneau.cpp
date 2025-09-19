@@ -8,7 +8,7 @@ void Anneau::Setup() {
   Serial.println("Setup completed for [Anneau]");
 }
 
-void Anneau::setColor(int firstLed, int lastLed, int r, int g, int b) {
+void Anneau::SetColor(int firstLed, int lastLed, int r, int g, int b) {
   for (int i = 0; i < LEDNUM; i++) {
     bool inRange = false;
 
@@ -31,19 +31,19 @@ void Anneau::setColor(int firstLed, int lastLed, int r, int g, int b) {
 }
 
 void Anneau::fullLeds(int r, int g, int b) {
-  setColor(0, LEDNUM, r, g, b);
+  SetColor(0, LEDNUM, r, g, b);
   _led.show();
 }
 
 void Anneau::halfLeds(int r, int g, int b) {
-  setColor(_firstLed, _lastLed, r, g, b);
+  SetColor(_firstLed, _lastLed, r, g, b);
   _led.show();
 }
 
-void Anneau::setFirstLed(int led) {
+void Anneau::SetFirstLed(int led) {
   _firstLed = led;
 }
 
-void Anneau::setLastLed(int led) {
+void Anneau::SetLastLed(int led) {
   _lastLed = led;
 }

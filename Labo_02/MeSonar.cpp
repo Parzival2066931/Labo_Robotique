@@ -12,30 +12,30 @@ void Sonar::Setup() {
   Serial.println("Setup completed for [Sonar]");
 }
 
-void Sonar::setMinDist(int dist) {
+void Sonar::SetMinDist(int dist) {
   _minDist = dist;
 }
 
-void Sonar::setMaxDist(int dist) {
+void Sonar::SetMaxDist(int dist) {
   _maxDist = dist;
 }
 
-void Sonar::setPrintDelay(int delay) {
+void Sonar::SetPrintDelay(int delay) {
   _printDelay = delay;
 }
 
-int Sonar::getDist() { return _dist; }
-int Sonar::getMinDist() const { return _minDist; }
-int Sonar::getMaxDist() const { return _maxDist; }
+int Sonar::GetDist() { return _dist; }
+int Sonar::GetMinDist() const { return _minDist; }
+int Sonar::GetMaxDist() const { return _maxDist; }
 
-void Sonar::_printDist() const {
+void Sonar::printDist() const {
   
   Serial.print("Distance: ");
   Serial.print(_dist);
   Serial.println(" cm");
 }
 
-void Sonar::update() {
+void Sonar::Update() {
   _currentTime = millis();
   if (_currentTime - _lastUpdate < _printDelay) { return; }
   
@@ -48,8 +48,6 @@ void Sonar::update() {
   }
 
   constrain(_dist, _minDist, _maxDist);
-
-  _printDist();
   
   _lastUpdate = _currentTime;
 }
