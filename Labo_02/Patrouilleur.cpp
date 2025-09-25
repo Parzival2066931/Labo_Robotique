@@ -172,7 +172,7 @@ void Patrouille::_dangerState() {
 
   if (_currentTime - _lastBackward < _backwardDelay) return;
 
-  _conducteur.SetState(STOP);
+  
   _conducteur.SetState(LTURNING);
 
   if (!hasTurned) return;

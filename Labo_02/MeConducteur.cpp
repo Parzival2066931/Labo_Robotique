@@ -170,6 +170,10 @@ void Conducteur::SetMaxSpeed(int speed) {
 }
 
 void Conducteur::SetState(ConducteurState state) {
+
+  if (state == LTURNING || state == RTURNING) {
+    _turnSuccess = false;
+  }
   _state = state;
 }
 
