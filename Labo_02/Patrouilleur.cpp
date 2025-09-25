@@ -70,11 +70,13 @@ void Patrouille::_rondeState() {
     firstTime = false;
     _lastBlink = _currentTime;
     _lastSuccess = _currentTime;
+    _conducteur.SetState(STOP);
     Serial.println("Entering in: RONDE");
   }
 
   if (_currentTime - _lastBlink < _blinkDelay) return;
   _blinkState = !_blinkState;
+  _lastBlink = _currentTime;
 
   if (_blinkState) {
     _anneau.fullLeds(0, 100, 0);
@@ -83,6 +85,8 @@ void Patrouille::_rondeState() {
   }
 
   if (_currentTime - _lastSuccess < _rondeStateDelay) return;
+  
+  firstTime = true;
   _state = NORMAL;
 }
 
@@ -144,6 +148,7 @@ void Patrouille::_slowState() {
 void Patrouille::_dangerState() {
   static bool firstTime = true;
   bool transition = _dist > _dangerDist;
+  bool hasTurned = _conducteur.GetTurnState();
 
   if (firstTime) {
     firstTime = false;
@@ -170,6 +175,10 @@ void Patrouille::_dangerState() {
   _conducteur.SetState(STOP);
   _conducteur.SetState(LTURNING);
 
+  if (!hasTurned) return;
+
+  _conducteur.SetState(STOP);
+
   if (transition) {
     firstTime = true;
     _state = RALENTI;
@@ -179,7 +188,6 @@ void Patrouille::_dangerState() {
 void Patrouille::Update() {
   _currentTime = millis();
 
-  _conducteur.Update();
   _sonar.Update();
   _dist = _sonar.GetDist();
 
@@ -197,6 +205,8 @@ void Patrouille::Update() {
       _rondeState();
       break;
   }
+  _conducteur.Update();
+
 }
 
 void Patrouille::PrintTask() {

@@ -23,6 +23,7 @@ class Conducteur {
     int _speed;
     int _turnSpeed;
     int _angle;
+    bool _turnSuccess;
 
     //Motor Left
     int _m1_pwm;
@@ -56,4 +57,5 @@ class Conducteur {
     void SetTurnSpeed(int speed);
     void SetState(ConducteurState state);
     int GetSpeed() const;
+    bool GetTurnState() const;
 };

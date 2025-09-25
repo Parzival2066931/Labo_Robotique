@@ -52,6 +52,10 @@ void Conducteur::Update() {
 int Conducteur::GetSpeed() const {
   return _speed;
 }
+
+bool Conducteur::GetTurnState() const {
+  return _turnSuccess;
+}
 void Conducteur::_Stop() {
   analogWrite(_m1_pwm, 0);
   analogWrite(_m2_pwm, 0);
@@ -85,7 +89,7 @@ void Conducteur::_TurnRight() {
 
   if(firstTime) {
     firstTime = false;
-
+    _turnSuccess = false;
     _gyro.update();
     startAngle = _gyro.getAngle(3);
     target = startAngle + _angle;
@@ -109,6 +113,7 @@ void Conducteur::_TurnRight() {
   
   if(transition) {
     firstTime = true;
+    _turnSuccess = true;
     _state = STOP;
   }
 }
@@ -122,6 +127,7 @@ void Conducteur::_TurnLeft() {
 
   if(firstTime) {
     firstTime = false;
+    _turnSuccess = false;
 
     _gyro.update();
     startAngle = _gyro.getAngle(3);
@@ -143,10 +149,10 @@ void Conducteur::_TurnLeft() {
   currentAngle = _gyro.getAngle(3);
 
   transition = fabs(currentAngle - target) <= 2;
-
   
   if(transition) {
     firstTime = true;
+    _turnSuccess = true;
     _state = STOP;
   }
 }
