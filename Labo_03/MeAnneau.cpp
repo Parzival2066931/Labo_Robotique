@@ -43,12 +43,12 @@ void Anneau::halfLeds(int r, int g, int b) {
 void Anneau::trailLed(int r, int g, int b) {
   static short idx = 1; // 0 = anneau complet
   
-  led.setColor (0, 0, 0); 
-  led.setColor(idx, 0, 0, 5);
+  _led.setColor (0, 0, 0); 
+  _led.setColor(idx, 0, 0, 5);
   
   idx = idx >= LEDNUM ? 1 : idx + 1;
   
-  led.show(); // Active l'anneau avec la couleur 
+  _led.show(); // Active l'anneau avec la couleur 
 }
 void Anneau::SetFirstLed(int led) {
   _firstLed = led;
