@@ -65,7 +65,6 @@ public:
 
   Conducteur();
 
-  void UTurn();
   void Setup();
   void Update();
   void SetMaxSpeed(int speed);
@@ -85,4 +84,5 @@ public:
   ConducteurState GetState() const;
   bool GetTurnState() const;
   long GetDistToGo() const;
+  float Conducteur::GetDistanceTraveled();
 };

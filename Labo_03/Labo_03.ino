@@ -36,18 +36,26 @@ enum LivreurState {
 };
 
 enum AllerState {
-  INIT_1,
   TRAJET_1,
-  INIT_2,
   TRAJET_2,
   DONE
 };
 
+enum RetourState {
+  UTURN,
+  TRAJET_3,
+  RETOUR_PIVOT,
+  TRAJET_4,
+  END
+};
+
 LivreurState state;
 AllerState allerStep;
+RetourState retourStep;
 
 void setup() {
   // put your setup code here, to run once:
+  Serial.begin(115200);
   attachInterrupt(conducteur.GetPinRight(), Conducteur::GetIsrRight, RISING);
   attachInterrupt(conducteur.GetPinLeft(), Conducteur::GetIsrLeft, RISING);
 
@@ -55,11 +63,11 @@ void setup() {
   conducteur.Setup();
   sonar.Setup();
 
-  distX = 100;
-  distY = 150;
+  distX = 200;
+  distY = 40;
   turnAngle = 90;
   uTurnAngle = 180;
-  turnSpeed = 100;
+  turnSpeed = 70;
   speed = 100;
   route = 0;
 
@@ -67,16 +75,26 @@ void setup() {
   deliveryTimer = 3000;
 
   state = ALLER;
+  allerStep = TRAJET_1;
+  retourStep = UTURN;
+
+  sonar.SetPrintDelay(100);
+  sonar.SetMinDist(0);
+  sonar.SetMaxDist(400);
 
   conducteur.SetState(STOP);
   conducteur.SetTurnSpeed(turnSpeed);
   conducteur.SetSpeed(speed);
+  conducteur.SetPID(6, 0.4, 4);
+
+  anneau.fullLeds(10, 0, 0);
 
   delay(WAITING_DELAY);
+  Serial.println("Setup completed");
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  Update();
 }
 
 bool isEven(int number) {
@@ -90,17 +108,11 @@ void pivotState() {
     firstTime = false;
 
     conducteur.SetAngle(turnAngle);
-
-    if (isEven(DA[6])) {
-      conducteur.SetState(LTURNING);
-    } else {
-      conducteur.SetState(RTURNING);
-    }
+    conducteur.SetState(isEven(DA[6]) ? LTURNING : RTURNING);
   }
 
   if (conducteur.GetTurnState()) {
     firstTime = true;
-    driveBackDist = sonar.GetDist() - distY;
     state = ALLER;
   }
 }
@@ -108,6 +120,7 @@ void pivotState() {
 void allerState() {
   switch (allerStep) {
     case TRAJET_1:
+      progressBarTask();
       firstRouteTask();
       break;
     case TRAJET_2:
@@ -120,7 +133,6 @@ void allerState() {
 
 void firstRouteTask() {
   static bool firstTime = true;
-  bool transition = conducteur.GetState() == STOP;
 
   if (firstTime) {
     firstTime = false;
@@ -130,11 +142,10 @@ void firstRouteTask() {
     conducteur.SetState(FORWARD);
   }
 
-  if (transition) {
+  if (conducteur.GetState() == STOP) {
     firstTime = true;
 
-    conducteur.SetAngle(turnAngle);
-    conducteur.SetState(isEven(DA[6]) ? LTURNING : RTURNING);
+
     allerStep = TRAJET_2;
     state = PIVOT;
   }
@@ -143,21 +154,31 @@ void firstRouteTask() {
 void secondRouteTask() {
   static bool firstTime = true;
   bool transition = sonar.GetDist() <= distY;
+  static float startDist = 0;
 
   if (firstTime) {
     firstTime = false;
 
+
+    startDist = conducteur.GetDistanceTraveled();
     conducteur.SetDriveMode(LIBRE);
     conducteur.SetState(FORWARD);
   }
 
   if (transition) {
     firstTime = true;
-
+    driveBackDist = conducteur.GetDistanceTraveled() - startDist;
     conducteur.SetState(STOP);
     allerStep = DONE;
     state = LIVRAISON;
   }
+}
+
+void progressBarTask() {
+  int lastLed = map(long(conducteur.GetDistanceTraveled()), 0, long(distX), 0, LEDNUM - 1);
+  anneau.SetFirstLed(0);
+  anneau.SetLastLed(lastLed);
+  anneau.partLeds(0, 10, 0);
 }
 
 void livraisonState() {
@@ -194,42 +215,100 @@ void livraisonState() {
 }
 
 void retourState() {
-  // static bool firstTime = true;
-  // bool hasTurned = conducteur.GetTurnState();
 
+  returnAnimationTask();
 
-  // if (firstTime) {
-  //   firstTime = false;
-  //   conducteur.SetAngle(uTurnAngle);
-  //   conducteur.SetState(RTURNING);
-  //   // animationRetour();
-  // }
-
-  // if (!hasTurned) return;
-
-  // conducteur.Drive(driveBackDist);
-
-  // if (fabs(conducteur.GetDistToGo()) >= 2) return;
-
-
-  // conducteur.SetAngle(turnAngle);
-  // if (isEven(DA[6])) {
-  //   conducteur.SetState(RTURNING);
-  // } else {
-  //   conducteur.SetState(LTURNING);
-  // }
-
-  // if (!hasTurned) return;
-  // //marche pas, hasTurned va return au premier et va entrer en boucle infini
-  // //trouver une autre solution car code devient trop impropre, trop de flag
+  switch (retourStep) {
+    case UTURN:
+      uTurnTask();
+      break;
+    case TRAJET_3:
+      returnRouteTask();
+      break;
+    case RETOUR_PIVOT:
+      returnPivotTask();
+      break;
+    case TRAJET_4:
+      returnRouteTask();
+      break;
+    case END:
+      anneau.RainbowRing();
+      break;
+  }
 }
+
+void uTurnTask() {
+  static bool firstTime = true;
+
+  if (firstTime) {
+    firstTime = false;
+
+    conducteur.SetAngle(uTurnAngle);
+    conducteur.SetState(RTURNING);
+  }
+
+  if (conducteur.GetTurnState()) {
+    firstTime = true;
+    conducteur.SetState(STOP);
+    retourStep = TRAJET_3;
+  }
+}
+
+void returnRouteTask() {
+  static bool firstTime = true;
+
+
+  if (firstTime) {
+    firstTime = false;
+
+    conducteur.SetDistance(retourStep == TRAJET_3 ? driveBackDist : distX);
+    conducteur.SetDriveMode(DISTANCE);
+    conducteur.SetState(FORWARD);
+  }
+
+  if (conducteur.GetState() == STOP) {
+    firstTime = true;
+
+    retourStep = retourStep == TRAJET_3 ? RETOUR_PIVOT : END;
+  }
+}
+
+void returnPivotTask() {
+  static bool firstTime = true;
+
+  if (firstTime) {
+    firstTime = false;
+
+    conducteur.SetAngle(turnAngle);
+    conducteur.SetState(isEven(DA[6]) ? RTURNING : LTURNING);
+  }
+
+  if (conducteur.GetTurnState()) {
+    firstTime = true;
+    retourStep = TRAJET_4;
+  }
+}
+
+void returnAnimationTask() {
+  static unsigned long lastTime = 0;
+  const int rate = 100;
+
+  if(currentTime - lastTime < rate) return;
+  lastTime = currentTime;
+
+  isEven(DA[5]) ? anneau.trailLed(0, 10, 0, true) : anneau.trailLed(0, 0, 10, false);
+}
+
 
 void Update() {
   currentTime = millis();
 
-
   conducteur.Update();
   sonar.Update();
+
+  //Tests
+  // allerState();
+
 
   switch (state) {
     case ALLER:

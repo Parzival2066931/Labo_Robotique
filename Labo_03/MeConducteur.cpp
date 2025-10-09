@@ -122,6 +122,16 @@ long Conducteur::GetDistToGo() const {
   return _encoderRight.distanceToGo();
 }
 
+float Conducteur::GetDistanceTraveled() {
+  long pulsesRight = labs(_encoderRight.getPulsePos());
+  long pulsesLeft = labs(_encoderLeft.getPulsePos());
+
+  float distanceRight = pulsesRight / _oneRot * _circonference;
+  float distanceLeft = pulsesLeft / _oneRot * _circonference;
+
+  return max(distanceRight, distanceLeft);
+}
+
 
 
 void Conducteur::_Stop() {
@@ -132,19 +142,19 @@ void Conducteur::_Stop() {
 void Conducteur::_DriveTo() {
   static bool firstTime = true;
   bool forward = (_cState == FORWARD);
-  bool transition = false;
-
-  float pulsePerDist = _distance / _circonference * 360;
+  static long targetPulse = 0;
 
   if (firstTime) {
     firstTime = false;
 
-    _encoderRight.moveTo(pulsePerDist * (forward ? 1 : -1));
-    _encoderLeft.moveTo(pulsePerDist * (forward ? 1 : -1));
+    _encoderRight.setPulsePos(0);
+    _encoderLeft.setPulsePos(0);
+
+    targetPulse = (_distance / _circonference * 360.0);
 
     _gyro.update();
-    _pid.SetTarget(_gyro.getAngleZ());
     _pid.ResetValues();
+    _pid.SetTarget(_gyro.getAngleZ());
   }
 
   _gyro.update();
@@ -152,13 +162,17 @@ void Conducteur::_DriveTo() {
   _pid.Update();
   double correction = _pid.GetCorrection();
 
-  int speedApplied = forward ? _speed : -_speed;
-  _encoderRight.setMotorPwm(speedApplied + correction);
-  _encoderLeft.setMotorPwm(-speedApplied + correction);
+  int baseRight = forward ? -_speed : _speed;
+  int baseLeft = forward ? _speed : -_speed;
 
-  transition = (_encoderRight.distanceToGo() == 0 && _encoderLeft.distanceToGo() == 0);
+  _encoderRight.setMotorPwm(baseRight + correction);
+  _encoderLeft.setMotorPwm(baseLeft + correction);
 
-  if (transition) {
+  long rightPulse = labs(_encoderRight.getPulsePos());
+  long leftPulse = labs(_encoderLeft.getPulsePos());
+  long currentPulse = min(rightPulse, leftPulse);
+
+  if (currentPulse >= targetPulse) {
     firstTime = true;
     SetState(STOP);
   }
@@ -167,19 +181,14 @@ void Conducteur::_DriveTo() {
 void Conducteur::_Drive() {
   static bool firstTime = true;
   bool forward = (_cState == FORWARD);
-  bool transition = false;
 
-  float pulsePerDist = _distance / _circonference * 360;
 
   if (firstTime) {
     firstTime = false;
 
-    _encoderRight.move(pulsePerDist * (forward ? 1 : -1));
-    _encoderLeft.move(pulsePerDist * (forward ? 1 : -1));
-
     _gyro.update();
-    _pid.SetTarget(_gyro.getAngleZ());
     _pid.ResetValues();
+    _pid.SetTarget(_gyro.getAngleZ());
   }
 
   _gyro.update();
@@ -187,16 +196,11 @@ void Conducteur::_Drive() {
   _pid.Update();
   double correction = _pid.GetCorrection();
 
-  int speedApplied = forward ? _speed : -_speed;
-  _encoderRight.setMotorPwm(speedApplied + correction);
-  _encoderLeft.setMotorPwm(-speedApplied + correction);
+  int baseRight = forward ? -_speed : _speed; 
+  int baseLeft = forward ? _speed : -_speed; 
 
-  transition = (_encoderRight.distanceToGo() == 0 && _encoderLeft.distanceToGo() == 0);
-
-  if (transition) {
-    firstTime = true;
-    SetState(STOP);
-  }
+  _encoderRight.setMotorPwm(baseRight + correction);
+  _encoderLeft.setMotorPwm(baseLeft + correction);
 }
 
 void Conducteur::_TurnRight() {
@@ -212,15 +216,15 @@ void Conducteur::_TurnRight() {
     firstTime = false;
     _turnSuccess = false;
     _gyro.update();
-    startAngle = _gyro.getAngle(3);
+    startAngle = _gyro.getAngleZ();
     target = startAngle + _angle;
   }
 
   _encoderRight.setMotorPwm(_turnSpeed);
-  _encoderLeft.setMotorPwm(-_turnSpeed);
+  _encoderLeft.setMotorPwm(_turnSpeed);
 
   _gyro.update();
-  currentAngle = _gyro.getAngle(3);
+  currentAngle = _gyro.getAngleZ();
 
   deltaAngle = currentAngle - target;
   if (deltaAngle > 180) deltaAngle -= 360;
@@ -232,6 +236,9 @@ void Conducteur::_TurnRight() {
     firstTime = true;
     _turnSuccess = true;
     _cState = STOP;
+
+    _pid.ResetValues();
+    _pid.SetTarget(_gyro.getAngleZ());
   }
 }
 
@@ -248,15 +255,15 @@ void Conducteur::_TurnLeft() {
     _turnSuccess = false;
 
     _gyro.update();
-    startAngle = _gyro.getAngle(3);
+    startAngle = _gyro.getAngleZ();
     target = startAngle - _angle;
   }
 
   _encoderRight.setMotorPwm(-_turnSpeed);
-  _encoderLeft.setMotorPwm(_turnSpeed);
+  _encoderLeft.setMotorPwm(-_turnSpeed);
 
   _gyro.update();
-  currentAngle = _gyro.getAngle(3);
+  currentAngle = _gyro.getAngleZ();
 
   deltaAngle = currentAngle - target;
   if (deltaAngle > 180) deltaAngle -= 360;
@@ -268,6 +275,9 @@ void Conducteur::_TurnLeft() {
     firstTime = true;
     _turnSuccess = true;
     _cState = STOP;
+
+    _pid.ResetValues();
+    _pid.SetTarget(_gyro.getAngleZ());
   }
 }
 
@@ -315,6 +325,4 @@ void Conducteur::SetPID(double p, double i, double d) {
 void Conducteur::SetDistance(float distance) {
   _distance = distance;
 }
-
-
 

@@ -27,12 +27,12 @@ double PIDControlleur::_calculatePid() {
   _correction = _prop + _integral + _diff;
 
   _lastError = _error;
-  return _currentValue + _correction;
+  return _correction;
 }
 
 void PIDControlleur::Update() {
   _currentTime = millis();
-  _dt = (_currentTime - _lastTime) / 1000;
+  _dt = (_currentTime - _lastTime) / 1000.0;
   _lastTime = _currentTime;
 
   _newValue = _calculatePid();
