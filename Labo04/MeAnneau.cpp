@@ -42,7 +42,7 @@ void Anneau::partLeds(int r, int g, int b) {
 }
 
 void Anneau::oneLed(int i, int r, int g, int b) {
-  _led.setColor(i, r, g, b);
+  _led.setColorAt(i, r, g, b);
   _led.show();
 }
 

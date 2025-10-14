@@ -319,7 +319,7 @@ void Conducteur::SetDriveMode(DriveState state) {
 }
 
 void Conducteur::SetSpeed(int speed) {
-  _speed = speed;
+  if (speed > _minSpeed && speed < _maxSpeed) _speed = speed;
 }
 
 void Conducteur::SetTurnSpeed(int speed) {

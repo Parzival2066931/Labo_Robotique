@@ -1,0 +1,23 @@
+{
+  "header": [255, 85],
+  "directions": {
+    "w": "F",
+    "a": "L",
+    "s": "B",
+    "d": "R",
+    "e": "k",
+    "stop": "S"
+  },
+  "actions": [
+    {
+      "key": "d",
+      "data": "d",
+      "label": "Debug"
+    },
+    {
+      "key": "stop",
+      "data": "S",
+      "label": "Stop"
+    }
+  ]
+}
