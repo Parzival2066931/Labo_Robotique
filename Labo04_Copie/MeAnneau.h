@@ -23,5 +23,5 @@ class Anneau {
     void SetLastLed(int led);
     void trailLed(int r, int g, int b, bool sensHoraire);
 
-    void Anneau::RainbowRing();
+    void RainbowRing();
 };

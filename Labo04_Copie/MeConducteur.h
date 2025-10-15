@@ -49,7 +49,7 @@ private:
   int _turnSpeed;
   int _angle;
 
-  
+  bool _firstTime;
   bool _turnSuccess;
 
   void _Stop();

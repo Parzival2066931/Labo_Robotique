@@ -1,19 +1,20 @@
-
 #include "MeAnneau.h"
 #include "MeConducteur.h"
 #include "MeSonar.h"
+#include <ezBuzzer.h>
 
 #define BUZZER_PIN 45
 
 Anneau anneau;
 Conducteur conducteur;
 Sonar sonar;
-MeBuzzer buzzer;
+ezBuzzer buzzer(BUZZER_PIN);
 
 
 unsigned long currentTime = 0;
 
 bool debugMode = false;
+bool firstAuto = true;
 
 float distance = 0;
 float speed = 100;
@@ -23,42 +24,21 @@ float minSpeed = 50;
 float maxSpeed = 255;
 const int blinkRate = 500;
 const int beepRate = 500;
-
-
-
-
-enum teleComState {
-  AVANCER,
-  PIVOTER,
-  RECULER,
-  ARRETER
-};
-
-enum pivotState {
-  GAUCHE,
-  DROITE
-};
+const int backwardFreq = 1000;
+const int klaxonFreq = 420;
 
 enum avanceState {
   AUTO,
   LIBRE
 };
 
-// enum ledModeState {
-//   FULL,
-//   ONE
-// };
-
-teleComState state;
-pivotState pState;
 avanceState aState;
-// ledModeState lState;
+
 
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(115200);
-
-  buzzer.setpin(BUZZER_PIN);
+  attachInterrupt(conducteur.GetPinRight(), Conducteur::GetIsrRight, RISING);
+  attachInterrupt(conducteur.GetPinLeft(), Conducteur::GetIsrLeft, RISING);
 
   anneau.Setup();
   conducteur.Setup();
@@ -70,7 +50,9 @@ void setup() {
   conducteur.SetMaxSpeed(maxSpeed);
   conducteur.SetSpeed(speed);
 
-  state = ARRETER;
+  buzzer.stop();
+
+  aState = LIBRE;
 }
 
 void loop() {
@@ -83,30 +65,13 @@ void update() {
 
   sonar.Update();
   conducteur.Update();
+  buzzer.loop();
 
-  switch (state) {
-    case AVANCER:
-      avancerState();
-      break;
-    case PIVOTER:
-      pivoterState();
-      break;
-    case RECULER:
-      reculerState();
-      break;
-    case ARRETER:
-      arreterState();
-      break;
-  }
-}
-
-void avancerState() {
   switch (aState) {
     case AUTO:
       avanceAuto();
       break;
     case LIBRE:
-      avance();
       break;
   }
 }
@@ -116,39 +81,31 @@ void avance() {
   conducteur.SetDriveMode(FREE);
   conducteur.SetState(FORWARD);
 }
+
 void avanceAuto() {
-  static bool firstTime = true;
   bool blinkState = switchBoolTask(blinkRate);
 
-  if (firstTime) {
-    firstTime = false;
+  if (firstAuto) {
+    firstAuto = false;
 
     conducteur.SetDriveMode(DISTANCE);
     conducteur.SetDistance(distance);
+    conducteur.SetState(FORWARD);
+
+    Serial.print(F("[AUTO] Distance cible: "));
+    Serial.println(distance);
   }
 
   blinkState ? anneau.fullLeds(10, 10, 0) : anneau.fullLeds(0, 0, 0);
 
   if (conducteur.GetState() == STOP) {
-    firstTime = true;
-  }
-}
-
-void pivoterState() {
-  switch (pState) {
-    case GAUCHE:
-      leftState();
-      break;
-    case DROITE:
-      rightState();
-      break;
+    Serial.println(F("[AUTO] Distance atteinte, arrêt automatique"));
+    arreterState();
   }
 }
 
 void leftState() {
   bool blinkState = switchBoolTask(blinkRate);
-
-
 
   anneau.SetFirstLed(11);
   anneau.SetLastLed(2);
@@ -156,21 +113,17 @@ void leftState() {
   conducteur.SetDriveMode(FREE);
   conducteur.SetState(LTURNING);
 
-
   blinkState ? anneau.partLeds(0, 10, 0) : anneau.fullLeds(0, 0, 0);
 }
 
 void rightState() {
   bool blinkState = switchBoolTask(blinkRate);
 
-
   anneau.SetFirstLed(2);
   anneau.SetLastLed(5);
-  anneau.partLeds(0, 10, 0);
 
   conducteur.SetDriveMode(FREE);
   conducteur.SetState(RTURNING);
-
 
   blinkState ? anneau.partLeds(0, 10, 0) : anneau.fullLeds(0, 0, 0);
 }
@@ -182,14 +135,21 @@ void reculerState() {
   conducteur.SetDriveMode(FREE);
   conducteur.SetState(BACKWARD);
 
-
-  // buzzerState ? buzzer.tone(1000) : buzzer.noTone();
+  // buzzerState ? tone(BUZZER_PIN, backwardFreq) : noTone(BUZZER_PIN);
+  // if (buzzerState && buzzer.getState() == BUZZER_IDLE) {
+  //   int melody[] = { NOTE_C5, 0 };      // bip + pause
+  //   int durations[] = { 8, 8 };
+  //   int len = sizeof(durations) / sizeof(int);
+  //   buzzer.playMelody(melody, durations, len);
+  // }
 }
 
 void arreterState() {
 
+  setAState(LIBRE);
   conducteur.SetState(STOP);
-  buzzer.noTone();
+  // noTone(BUZZER_PIN);
+  buzzer.stop();
 
   anneau.SetFirstLed(5);
   anneau.SetLastLed(11);
@@ -257,7 +217,6 @@ void parseData(String& receivedData) {
 }
 
 void handleCommand(String command) {
-  //QUEL EST LA DIFFÉRENCE ENTRE LES COMMANDE REÇU AVEC OU SANS PARAMÈTRE POUR LES DIRECTIONS?
   // Utilisation d'un switch pour les commandes sans paramètres
   char cmd = command[0];
   switch (cmd) {
@@ -275,38 +234,37 @@ void handleCommand(String command) {
     case 'F':  //Commande FORWARD
       Serial.print(F("Commande FORWARD reçue"));
 
-      aState = LIBRE;
-      setState(AVANCER);
+      setAState(LIBRE);
+      avance();
+
 
       break;
 
     case 'B':  //Commande BACKWARD
       Serial.print(F("Commande BACKWARD reçue"));
 
-      setState(RECULER);
+      reculerState();
 
       break;
 
     case 'R':  //Commande RIGHT
       Serial.print(F("Commande RIGHT reçue"));
 
-      pState = DROITE;
-      setState(PIVOTER);
+      rightState();
 
       break;
 
     case 'L':  //Commande LEFT
       Serial.print(F("Commande LEFT reçue"));
 
-      pState = GAUCHE;
-      setState(PIVOTER);
+      leftState();
 
       break;
 
     case 'S':
       Serial.print(F("Commande STOP reçue"));
 
-      setState(ARRETER);
+      arreterState();
 
       break;
 
@@ -328,8 +286,7 @@ void handleCommandWithParams(String command, String params) {
 
       distance = params.toFloat();
 
-      aState = AUTO;
-      setState(AVANCER);
+      setAState(AUTO);
 
       break;
 
@@ -387,8 +344,9 @@ void commandLight(String params) {
 
 
 
+
 void klaxonAction() {
-  buzzer.tone(3000);
+  tone(BUZZER_PIN, klaxonFreq);
 }
 
 int countCharOccurrences(const String& str, char ch) {
@@ -401,13 +359,16 @@ int countCharOccurrences(const String& str, char ch) {
   return count;
 }
 
-void setState(teleComState s) {
-  static teleComState lastState = ARRETER;
-  if (lastState == s) return;
+void setAState(avanceState s) {
+  static avanceState lastAState = LIBRE;
+  if (lastAState == s) return;
 
-  lastState = state;
-  state = s;
+  lastAState = s;
+  aState = s;
+  firstAuto = true;
 }
+
+
 
 bool switchBoolTask(int delay) {
   static unsigned long lastTime = 0;

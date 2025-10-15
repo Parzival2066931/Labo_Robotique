@@ -45,6 +45,8 @@ void Conducteur::Setup() {
   _cState = STOP;
   _dState = FREE;
 
+  _firstTime = true;
+
   //encodeurs
 
   //Set PWM 8KHz
@@ -142,17 +144,16 @@ void Conducteur::_Stop() {
 }
 
 void Conducteur::_DriveTo() {
-  static bool firstTime = true;
   bool forward = (_cState == FORWARD);
   static long targetPulse = 0;
 
-  if (firstTime) {
-    firstTime = false;
+  if (_firstTime) {
+    _firstTime = false;
 
     _encoderRight.setPulsePos(0);
     _encoderLeft.setPulsePos(0);
 
-    targetPulse = (_distance / _circonference * 360.0);
+    targetPulse = (_distance / _circonference * _oneRot);
 
     _gyro.update();
     _pid.ResetValues();
@@ -175,18 +176,16 @@ void Conducteur::_DriveTo() {
   long currentPulse = min(rightPulse, leftPulse);
 
   if (currentPulse >= targetPulse) {
-    firstTime = true;
     SetState(STOP);
   }
 }
 
 void Conducteur::_Drive() {
-  static bool firstTime = true;
   bool forward = (_cState == FORWARD);
 
 
-  if (firstTime) {
-    firstTime = false;
+  if (_firstTime) {
+    _firstTime = false;
 
     _gyro.update();
     _pid.ResetValues();
@@ -211,7 +210,6 @@ void Conducteur::_TurnRight() {
 }
 
 void Conducteur::_TurnRightTo() {
-  static bool firstTime = true;
   static float startAngle = 0;
   static float target = 0;
   float currentAngle = 0;
@@ -219,8 +217,8 @@ void Conducteur::_TurnRightTo() {
   bool transition = false;
 
 
-  if (firstTime) {
-    firstTime = false;
+  if (_firstTime) {
+    _firstTime = false;
     _turnSuccess = false;
     _gyro.update();
     startAngle = _gyro.getAngleZ();
@@ -240,7 +238,6 @@ void Conducteur::_TurnRightTo() {
   transition = fabs(deltaAngle) <= 2;
 
   if (transition) {
-    firstTime = true;
     _turnSuccess = true;
     _cState = STOP;
 
@@ -255,15 +252,14 @@ void Conducteur::_TurnLeft() {
 }
 
 void Conducteur::_TurnLeftTo() {
-  static bool firstTime = true;
   static float startAngle = 0;
   static float target = 0;
   float currentAngle = 0;
   float deltaAngle = 0;
   bool transition = false;
 
-  if (firstTime) {
-    firstTime = false;
+  if (_firstTime) {
+    _firstTime = false;
     _turnSuccess = false;
 
     _gyro.update();
@@ -284,7 +280,6 @@ void Conducteur::_TurnLeftTo() {
   transition = fabs(deltaAngle) <= 2;
 
   if (transition) {
-    firstTime = true;
     _turnSuccess = true;
     _cState = STOP;
 
@@ -292,6 +287,7 @@ void Conducteur::_TurnLeftTo() {
     _pid.SetTarget(_gyro.getAngleZ());
   }
 }
+
 
 
 void Conducteur::SetAngle(int angle) {
@@ -307,11 +303,23 @@ void Conducteur::SetMaxSpeed(int speed) {
 }
 
 void Conducteur::SetState(ConducteurState state) {
+  static ConducteurState lastState = STOP;
+
+  if (_cState == state) return;
 
   if (state == LTURNING || state == RTURNING) {
     _turnSuccess = false;
   }
   _cState = state;
+  lastState = _cState;
+
+  _firstTime = true;
+
+  if (state == FORWARD || state == BACKWARD) {
+    _gyro.update();
+    _pid.ResetValues();
+    _pid.SetTarget(_gyro.getAngleZ());
+  }
 }
 
 void Conducteur::SetDriveMode(DriveState state) {
@@ -319,7 +327,7 @@ void Conducteur::SetDriveMode(DriveState state) {
 }
 
 void Conducteur::SetSpeed(int speed) {
-  if (speed > _minSpeed && speed < _maxSpeed) _speed = speed;
+  if (speed >= _minSpeed && speed <= _maxSpeed) _speed = speed;
 }
 
 void Conducteur::SetTurnSpeed(int speed) {
