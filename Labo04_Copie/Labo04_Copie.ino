@@ -18,13 +18,12 @@ bool firstAuto = true;
 
 float distance = 0;
 float speed = 100;
-float backwardSpeed = 50;
-float turnSpeed = 70;
+float turnSpeed = 100;
 float minSpeed = 50;
 float maxSpeed = 255;
 const int blinkRate = 500;
 const int beepRate = 500;
-const int backwardFreq = 1000;
+const int backwardPWM = 200;
 const int klaxonFreq = 420;
 
 enum avanceState {
@@ -44,7 +43,7 @@ void setup() {
   conducteur.Setup();
   sonar.Setup();
 
-  conducteur.SetPID(6, 1, 3);
+  conducteur.SetPID(9, 1, 3);
   conducteur.SetTurnSpeed(turnSpeed);
   conducteur.SetMinSpeed(minSpeed);
   conducteur.SetMaxSpeed(maxSpeed);
@@ -131,25 +130,18 @@ void rightState() {
 void reculerState() {
   bool buzzerState = switchBoolTask(beepRate);
 
-  conducteur.SetSpeed(backwardSpeed);
   conducteur.SetDriveMode(FREE);
   conducteur.SetState(BACKWARD);
 
-  // buzzerState ? tone(BUZZER_PIN, backwardFreq) : noTone(BUZZER_PIN);
-  // if (buzzerState && buzzer.getState() == BUZZER_IDLE) {
-  //   int melody[] = { NOTE_C5, 0 };      // bip + pause
-  //   int durations[] = { 8, 8 };
-  //   int len = sizeof(durations) / sizeof(int);
-  //   buzzer.playMelody(melody, durations, len);
-  // }
+  buzzerState ? analogWrite(BUZZER_PIN, backwardPWM) : analogWrite(BUZZER_PIN, 0);
 }
 
 void arreterState() {
 
   setAState(LIBRE);
   conducteur.SetState(STOP);
-  // noTone(BUZZER_PIN);
-  buzzer.stop();
+  analogWrite(BUZZER_PIN, 0);
+
 
   anneau.SetFirstLed(5);
   anneau.SetLastLed(11);
@@ -346,7 +338,7 @@ void commandLight(String params) {
 
 
 void klaxonAction() {
-  tone(BUZZER_PIN, klaxonFreq);
+  analogWrite(BUZZER_PIN, 100);
 }
 
 int countCharOccurrences(const String& str, char ch) {
