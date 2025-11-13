@@ -44,8 +44,9 @@ void Conducteur::Setup() {
   _gyro.begin();
   _tracker.Setup();
 
-  _cState = CALIBRATE;
+  _cState = STOP;
   _dState = FREE;
+  _fState = NONE;
 
   _firstTime = true;
 
@@ -211,10 +212,38 @@ void Conducteur::_Drive() {
 }
 
 void Conducteur::_FollowLine() {
+
+  _tracker.Update();
+  //ajout d'une méthode SetFState()
+  //rotateTo(): gérer gauche et droite avec un bool comme drive
+
+  switch(_fState) {
+    case NONE:
+      //tous les if pour envoyer dans le bon état
+      break;
+    case ON_LINE:
+      //situation standard
+    case TURN_RIGHT:
+      //gestion du départ _fSubFirsTime 
+      //rotateTo(target) 
+      //gestion sortie
+      break;
+    case TURN_LEFT:
+      //comme RIGHT, mais pour gauche
+      break;
+    case NO_LINE:
+      //dans firstTime:
+        //_Stop();
+        //SetAngle(180);
+        //comme TURN_RIGHT, mais 180 degré;
+      //SetFState(NONE);
+      break;
+  }
+
   if (_firstTime) {
     _firstTime = false;
     _trackerPid.ResetValues();
-    _trackerPid.SetTarget(0.0);
+    _trackerPid.SetTarget(0);
   }
 
   _tracker.Update();
@@ -222,8 +251,6 @@ void Conducteur::_FollowLine() {
   _trackerPid.SetValue(_tracker.GetLinePosition());
   _trackerPid.Update();
   double correction = _trackerPid.GetCorrection();
-
-  
 
   _encoderRight.setMotorPwm(-_speed + correction);
   _encoderLeft.setMotorPwm(_speed + correction);
@@ -345,6 +372,8 @@ void Conducteur::_TurnLeftTo() {
 
 
 
+
+
 void Conducteur::SetAngle(int angle) {
   _angle = angle;
 }
@@ -407,8 +436,28 @@ void Conducteur::SetDistance(float distance) {
   _distance = distance;
 }
 
+
+//Tracker
+
 void Conducteur::DebugPrint() {
   _tracker.DebugPrint();
 }
 
+bool _rotateTo(float targetAngle) {
+    _gyro.update();
+    float current = _gyro.getAngleZ();
+
+    float delta = current - targetAngle;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+
+    bool reached = (fabs(delta) <= 2);
+
+    if (!reached) {
+        _encoderRight.setMotorPwm(_turnSpeed);
+        _encoderLeft.setMotorPwm(_turnSpeed);
+    }
+
+    return reached;
+}
 

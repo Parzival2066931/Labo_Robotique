@@ -34,8 +34,8 @@ double Tracker::GetLinePosition() {
     numerator += _capteur[i].normal_val * (i - 2);
     denominator += _capteur[i].normal_val;
   }
-  if (denominator == 0) return 0;
-  return numerator / denominator * 1000.0;
+
+  return (denominator == 0) ? 0 : (numerator / denominator * 1000.0);
 }
 
 void Tracker::_SetMinVal(int value, int index) { _capteur[index].min = value; }
@@ -59,8 +59,7 @@ void Tracker::Calibrate_IR() {
 int Tracker::_capteurLectureNormalisee(int index) {
   int range = _capteur[index].max - _capteur[index].min;
 
-  if (range == 0) { return 0; }
-  return ((_capteur[index].val - _capteur[index].min) * 1000.0 / range);
+  return (range == 0) ? 0 : ((_capteur[index].val - _capteur[index].min) * 1000.0 / range);
 }
 
 void Tracker::_normalizeValues() {
@@ -82,6 +81,10 @@ void Tracker::DebugPrint() {
 }
 
 double Tracker::GetTargetVal(int index) const { return _capteur[index].normal_val; }
+
+bool Tracker::IsOnLine() {
+
+}
 
 
 

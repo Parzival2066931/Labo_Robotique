@@ -19,7 +19,7 @@ void setup() {
 
     conducteur.Setup();
     conducteur.SetGyroPID(0, 0, 0);
-    conducteur.SetTrackerPID(1, 1, 1);
+    conducteur.SetTrackerPID(0.9, 0, 0);
 
     conducteur.SetTurnSpeed(turnSpeed);
     conducteur.SetMinSpeed(minSpeed);
@@ -32,6 +32,5 @@ void loop() {
     currentTime = millis();
 
     conducteur.Update();
-    // if(conducteur.GetState() == STOP) conducteur.SetState(FOLLOW);
 }
 

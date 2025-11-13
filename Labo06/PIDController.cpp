@@ -22,7 +22,7 @@ double PIDControlleur::_calculatePid() {
 
   _prop = _kp * _error;
   _integral += _ki * _error * _dt;    
-  _integral = constrain(_integral, -255, 255);              
+  _integral = constrain(_integral, -255, 255);
   _diff = _kd * (_error - _lastError) / _dt; 
 
   

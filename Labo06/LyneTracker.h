@@ -22,7 +22,6 @@ private:
   void _SetMinVal(int value, int index);
   void _SetMaxVal(int value, int index);
 
-  // Retourne une valeur normalisée entre 0 et 1000 (protégée contre division par zéro)
   int _capteurLectureNormalisee(int index);
   void _normalizeValues();
 
@@ -32,11 +31,15 @@ public:
   void Setup();
   void Update();
   void Calibrate_IR();
-  double GetLinePosition();
 
+  double GetLinePosition();
   int GetMinVal(int index) const;
   int GetMaxVal(int index) const;
-  double GetTargetVal(int index) const; // 🔹 utile pour debug
+  double GetTargetVal(int index) const; 
 
-  void DebugPrint();        // 🔹 affichage série des valeurs
+  bool IsOnLine();
+
+  void DebugPrint();
+
+
 };

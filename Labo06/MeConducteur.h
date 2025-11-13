@@ -27,6 +27,14 @@ enum DriveState {
   FREE,
 };
 
+enum FollowState {
+  NONE,
+  ON_LINE,
+  TURN_RIGHT,
+  TURN_LEFT,
+  NO_LINE
+};
+
 
 class Conducteur {
 private:
@@ -40,6 +48,7 @@ private:
 
   ConducteurState _cState;
   DriveState _dState;
+  FollowState _fState;
 
   double _kp = 1;
   double _ki = 1;
@@ -67,6 +76,7 @@ private:
   void _FollowLine();
 
   void _Calibrate_IR();
+  bool _rotateTo(double targetAngle);
 
   void _isr_process_encoder1(void);
   void _isr_process_encoder2(void);
