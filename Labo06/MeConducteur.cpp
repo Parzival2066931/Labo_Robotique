@@ -46,7 +46,7 @@ void Conducteur::Setup() {
 
   _cState = STOP;
   _dState = FREE;
-  _fState = NONE;
+  _fState = ON_LINE;
 
   _firstTime = true;
 
@@ -220,13 +220,10 @@ void Conducteur::_FollowLine() {
   switch(_fState) {
     case ON_LINE:
       _onLineState();
+      break;
     case TURN_RIGHT:
-      _onRightAngle();
-      //gestion du départ _fSubFirsTime 
-      //rotateTo(target) 
-      //gestion sortie
     case TURN_LEFT:
-      //comme RIGHT, mais pour gauche
+      _onRightAngle();
       break;
     case NO_LINE:
       _noLineState();
@@ -272,6 +269,8 @@ void Conducteur::_Calibrate_IR() {
 }
 
 void Conducteur::_noLineState() {
+  static double targetAngle = 0;
+
   if(_fSubFirstTime) {
     _fSubFirstTime = false;
 
@@ -280,19 +279,19 @@ void Conducteur::_noLineState() {
 
     _gyro.update();
     double startAngle = _gyro.getAngleZ();
-    double targetAngle = startAngle + _angle;
+    targetAngle = startAngle + _angle;
   }
 
   bool transition = _rotateTo(targetAngle);
   if(transition) {
     _Stop();
-    _fState = ON_LINE;
+    SetFState(ON_LINE);
   }
 }
 
 void Conducteur::_onLineState() {
   if(_fSubFirstTime) {
-    _fSubirstTime = false;
+    _fSubFirstTime = false;
 
     _trackerPid.ResetValues();
     _trackerPid.SetTarget(0);
@@ -318,6 +317,8 @@ void Conducteur::_onLineState() {
 }
 
 void Conducteur::_onRightAngle() {
+  static double targetAngle = 0;
+
   if(_fSubFirstTime) {
     _fSubFirstTime = false;
 
@@ -328,13 +329,13 @@ void Conducteur::_onRightAngle() {
 
     _gyro.update();
     double startAngle = _gyro.getAngleZ();
-    double targetAngle = startAngle + _angle;
+    targetAngle = startAngle + _angle;
   }
 
   bool transition = _rotateTo(targetAngle);
   if(transition) {
     _Stop();
-    _fState = ON_LINE;
+    SetFState(ON_LINE);
   }
 }
 
@@ -498,7 +499,7 @@ void Conducteur::DebugPrint() {
   _tracker.DebugPrint();
 }
 
-bool _rotateTo(float targetAngle) {
+bool Conducteur::_rotateTo(double targetAngle) {
     _gyro.update();
     float current = _gyro.getAngleZ();
 

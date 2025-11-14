@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "MeSonar.h"
+#include "Sonar.h"
 
 Sonar::Sonar()
   : _sensor(PORT_10) {}

@@ -84,7 +84,7 @@ void Tracker::DebugPrint() {
 
 double Tracker::GetTargetVal(int index) const { return _capteur[index].normal_val; }
 
-bool Tracker::IsNoLine() {
+bool Tracker::IsNoLine() const {
   for (int i = 0; i < NB_IR; i++)
       if (_capteur[i].onLine) return false;
   return true;
@@ -114,7 +114,7 @@ bool Tracker::IsRightAngleRight() const {
             _capteur[4].onLine;
 }
 
-bool Tracker::IsIntersectionT() const {
+bool Tracker::IsIntersection() const {
     for (int i = 0; i < NB_IR; i++)
         if (!_capteur[i].onLine) return false;
     return true;
