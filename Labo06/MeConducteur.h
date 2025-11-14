@@ -28,11 +28,11 @@ enum DriveState {
 };
 
 enum FollowState {
-  NONE,
   ON_LINE,
   TURN_RIGHT,
   TURN_LEFT,
   NO_LINE
+  //INTERSECTION
 };
 
 
@@ -64,6 +64,7 @@ private:
   int _angle;
 
   bool _firstTime;
+  bool _fSubFirstTime;
   bool _turnSuccess;
 
   void _Stop();
@@ -73,10 +74,14 @@ private:
   void _Drive();
   void _TurnLeft();
   void _TurnLeftTo();
-  void _FollowLine();
 
+  void _FollowLine();
   void _Calibrate_IR();
   bool _rotateTo(double targetAngle);
+  void _noLineState();
+  void _onLineState();
+  void _onRightAngle();
+  void _onIntersection();
 
   void _isr_process_encoder1(void);
   void _isr_process_encoder2(void);
@@ -93,6 +98,7 @@ public:
   void SetSpeed(int speed);
   void SetTurnSpeed(int speed);
   void SetState(ConducteurState state);
+  void SetFState(FollowState state);
   void SetGyroPID(double p, double i, double d);
   void SetTrackerPID(double p, double i, double d);
   void SetDistance(float distance);

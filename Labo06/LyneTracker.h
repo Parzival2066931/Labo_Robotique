@@ -8,6 +8,8 @@ struct Capteur_IR {
   int max = 0;
   double normal_val = 0;
   int val = 0;
+  bool onLine = false;
+  int seuil = 0;
 };
 
 class Tracker {
@@ -37,9 +39,12 @@ public:
   int GetMaxVal(int index) const;
   double GetTargetVal(int index) const; 
 
-  bool IsOnLine();
+  bool IsOnLine() const;
+  bool IsNoLine() const;
+  bool IsCentered() const;
+  bool IsRightAngleLeft() const;
+  bool IsRightAngleRight() const;
+  bool IsIntersection() const;
 
   void DebugPrint();
-
-
 };

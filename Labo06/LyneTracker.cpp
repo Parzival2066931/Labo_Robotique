@@ -53,6 +53,7 @@ void Tracker::Calibrate_IR() {
     _capteur[i].val = ss.analogRead(i);
     if(_capteur[i].min > _capteur[i].val) _SetMinVal(_capteur[i].val, i);
     if(_capteur[i].max < _capteur[i].val) _SetMaxVal(_capteur[i].val, i);
+    _capteur[i].seuil = _capteur[i].min + 300;
   }
 }
 
@@ -65,6 +66,7 @@ int Tracker::_capteurLectureNormalisee(int index) {
 void Tracker::_normalizeValues() {
   for(int i = 0; i < NB_IR; i++) {
     _capteur[i].normal_val = _capteurLectureNormalisee(i);
+    _capteur[i].onLine = (_capteur[i].normal_val < _capteur[i].seuil);
   }
 }
 
@@ -82,10 +84,38 @@ void Tracker::DebugPrint() {
 
 double Tracker::GetTargetVal(int index) const { return _capteur[index].normal_val; }
 
-bool Tracker::IsOnLine() {
-
+bool Tracker::IsNoLine() {
+  for (int i = 0; i < NB_IR; i++)
+      if (_capteur[i].onLine) return false;
+  return true;
 }
 
+bool Tracker::IsCentered() const {
+    return (
+        !_capteur[0].onLine &&
+        !_capteur[4].onLine &&
+        (_capteur[1].onLine || _capteur[2].onLine || _capteur[3].onLine)
+    );
+}
 
+bool Tracker::IsRightAngleLeft() const {
+    return _capteur[0].onLine &&
+           _capteur[1].onLine &&
+           _capteur[2].onLine &&
+          !_capteur[3].onLine &&
+          !_capteur[4].onLine;
+}
 
+bool Tracker::IsRightAngleRight() const {
+    return !_capteur[0].onLine &&
+           !_capteur[1].onLine &&
+            _capteur[2].onLine &&
+            _capteur[3].onLine &&
+            _capteur[4].onLine;
+}
 
+bool Tracker::IsIntersectionT() const {
+    for (int i = 0; i < NB_IR; i++)
+        if (!_capteur[i].onLine) return false;
+    return true;
+}

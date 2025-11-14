@@ -211,49 +211,30 @@ void Conducteur::_Drive() {
   _encoderLeft.setMotorPwm(baseLeft + correction);
 }
 
+
+
 void Conducteur::_FollowLine() {
 
   _tracker.Update();
-  //ajout d'une méthode SetFState()
-  //rotateTo(): gérer gauche et droite avec un bool comme drive
 
   switch(_fState) {
-    case NONE:
-      //tous les if pour envoyer dans le bon état
-      break;
     case ON_LINE:
-      //situation standard
+      _onLineState();
     case TURN_RIGHT:
+      _onRightAngle();
       //gestion du départ _fSubFirsTime 
       //rotateTo(target) 
       //gestion sortie
-      break;
     case TURN_LEFT:
       //comme RIGHT, mais pour gauche
       break;
     case NO_LINE:
-      //dans firstTime:
-        //_Stop();
-        //SetAngle(180);
-        //comme TURN_RIGHT, mais 180 degré;
-      //SetFState(NONE);
+      _noLineState();
       break;
+    //case INTERSECTION:
+      //_intersectionState();
+      //break;
   }
-
-  if (_firstTime) {
-    _firstTime = false;
-    _trackerPid.ResetValues();
-    _trackerPid.SetTarget(0);
-  }
-
-  _tracker.Update();
-
-  _trackerPid.SetValue(_tracker.GetLinePosition());
-  _trackerPid.Update();
-  double correction = _trackerPid.GetCorrection();
-
-  _encoderRight.setMotorPwm(-_speed + correction);
-  _encoderLeft.setMotorPwm(_speed + correction);
 }
 
 void Conducteur::_Calibrate_IR() {
@@ -289,6 +270,75 @@ void Conducteur::_Calibrate_IR() {
     _cState = FOLLOW;
   }
 }
+
+void Conducteur::_noLineState() {
+  if(_fSubFirstTime) {
+    _fSubFirstTime = false;
+
+    _Stop();
+    SetAngle(180);
+
+    _gyro.update();
+    double startAngle = _gyro.getAngleZ();
+    double targetAngle = startAngle + _angle;
+  }
+
+  bool transition = _rotateTo(targetAngle);
+  if(transition) {
+    _Stop();
+    _fState = ON_LINE;
+  }
+}
+
+void Conducteur::_onLineState() {
+  if(_fSubFirstTime) {
+    _fSubirstTime = false;
+
+    _trackerPid.ResetValues();
+    _trackerPid.SetTarget(0);
+  }
+
+  _tracker.Update();
+
+  _trackerPid.SetValue(_tracker.GetLinePosition());
+  _trackerPid.Update();
+  double correction = _trackerPid.GetCorrection();
+
+  _encoderRight.setMotorPwm(-_speed + correction);
+  _encoderLeft.setMotorPwm(_speed + correction);
+
+  bool noLineTransition = _tracker.IsNoLine();
+  bool rightTransition = _tracker.IsRightAngleRight();
+  bool leftTransition = _tracker.IsRightAngleLeft();
+  //transition pour le T à venir
+
+  if(noLineTransition) SetFState(NO_LINE);
+  else if(rightTransition) SetFState(TURN_RIGHT);
+  else if(leftTransition) SetFState(TURN_LEFT);
+}
+
+void Conducteur::_onRightAngle() {
+  if(_fSubFirstTime) {
+    _fSubFirstTime = false;
+
+    int angle = (_fState == TURN_LEFT) ? -90 : 90;
+
+    _Stop();
+    SetAngle(angle);
+
+    _gyro.update();
+    double startAngle = _gyro.getAngleZ();
+    double targetAngle = startAngle + _angle;
+  }
+
+  bool transition = _rotateTo(targetAngle);
+  if(transition) {
+    _Stop();
+    _fState = ON_LINE;
+  }
+}
+
+
 
 void Conducteur::_TurnRight() {
   _encoderRight.setMotorPwm(_turnSpeed);
@@ -387,7 +437,6 @@ void Conducteur::SetMaxSpeed(int speed) {
 }
 
 void Conducteur::SetState(ConducteurState state) {
-  static ConducteurState lastState = STOP;
 
   if (_cState == state) return;
 
@@ -395,8 +444,6 @@ void Conducteur::SetState(ConducteurState state) {
     _turnSuccess = false;
   }
   _cState = state;
-  lastState = _cState;
-
   _firstTime = true;
 
   if (state == FORWARD || state == BACKWARD) {
@@ -404,6 +451,14 @@ void Conducteur::SetState(ConducteurState state) {
     _gyroPid.ResetValues();
     _gyroPid.SetTarget(_gyro.getAngleZ());
   }
+}
+
+void Conducteur::SetFState(FollowState state) {
+
+  if (_fState == state) return;
+
+  _fState = state;
+  _fSubFirstTime = true;
 }
 
 void Conducteur::SetDriveMode(DriveState state) {
@@ -454,10 +509,10 @@ bool _rotateTo(float targetAngle) {
     bool reached = (fabs(delta) <= 2);
 
     if (!reached) {
-        _encoderRight.setMotorPwm(_turnSpeed);
-        _encoderLeft.setMotorPwm(_turnSpeed);
+      int speed = (_fState == TURN_LEFT) ? -_turnSpeed : _turnSpeed;
+      _encoderRight.setMotorPwm(speed);
+      _encoderLeft.setMotorPwm(speed);
     }
 
     return reached;
 }
-

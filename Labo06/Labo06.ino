@@ -1,10 +1,11 @@
 #include <Adafruit_seesaw.h>
 #include "MeConducteur.h"
+#include "Sonar.h"
 
 
 
-
-float speed = 100;
+float normalSpeed = 100;
+float slowSpeed = 60;
 float turnSpeed = 100;
 float minSpeed = 50;
 float maxSpeed = 255;
@@ -12,6 +13,12 @@ float maxSpeed = 255;
 unsigned long currentTime = 0;
 
 Conducteur conducteur;
+
+CruzeControlState {
+    NORMAL,
+    VIGILANCE
+}
+CruzeControlState speedState = NORMAL;
 
 
 void setup() {
@@ -31,6 +38,18 @@ void setup() {
 void loop() {
     currentTime = millis();
 
+    speedUpdate();
     conducteur.Update();
+}
+
+void speedUpdate() {
+    switch(speedState) {
+        case NORMAL:
+            conducteur.SetSpeed(normalSpeed);
+            break;
+        case VIGILANCE:
+            conducteur.SetSpeed(slowSpeed);
+            break;
+    }
 }
 
