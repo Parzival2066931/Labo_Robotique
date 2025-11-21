@@ -18,6 +18,11 @@
       "key": "stop",
       "data": "S",
       "label": "Stop"
+    },
+    {
+      "key": "C",
+      "data": "C",
+      "label": "Calibration"
     }
   ]
 }

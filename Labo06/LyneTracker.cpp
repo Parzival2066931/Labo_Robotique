@@ -79,7 +79,7 @@ void Tracker::DebugPrint() {
     Serial.print("\t");
   }
   Serial.print(" | Pos = ");
-  Serial.println(GetLinePosition());
+  Serial.println(IsIntersection());
 }
 
 double Tracker::GetTargetVal(int index) const { return _capteur[index].normal_val; }

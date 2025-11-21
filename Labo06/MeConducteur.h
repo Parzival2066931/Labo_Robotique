@@ -112,7 +112,7 @@ public:
   Conducteur();
 
   void Setup();
-  void Update(int obstacleDist);
+  void Update(int obstacleDist = 0);
 
   void SetMaxSpeed(int speed);
   void SetMinSpeed(int speed);

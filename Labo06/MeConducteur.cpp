@@ -53,9 +53,9 @@ void Conducteur::Setup() {
   _fSubFirstTime = true;
   _deliveryDone = false;
 
-  _afterFollowDelay = 70;
+  _afterFollowDelay = 500;
   _delayRunning = false;
-  _limitDist = 50;
+  _limitDist = 40;
 
   //encodeurs
 
@@ -81,13 +81,13 @@ void Conducteur::Setup() {
   Serial.println("Setup completed for [Conducteur]");
 }
 
-void Conducteur::Update(int obstacleDist) {
+void Conducteur::Update(int obstacleDist = 0) {
   _currentTime = millis();
 
   _encoderRight.loop();
   _encoderLeft.loop();
 
-  DebugPrint();  
+  // DebugPrint();  
 
   switch (_cState) {
     case CALIBRATE:
@@ -322,10 +322,11 @@ void Conducteur::_onLineState() {
   bool leftTransition = _tracker.IsRightAngleLeft();
   bool intersectionTransition = _tracker.IsIntersection();
 
+  if(intersectionTransition) { _iState = I_TURN_90; SetFState(INTERSECTION); return; }
   if(noLineTransition) { SetFState(NO_LINE); return; }
   if(rightTransition) { SetFState(TURN_RIGHT); return; }
-  if(leftTransition) { SetFState(TURN_LEFT); return; }
-  if(intersectionTransition) { _iState = I_TURN_90; SetFState(INTERSECTION); }
+  if(leftTransition) { SetFState(TURN_LEFT); }
+  
 }
 
 void Conducteur::_onRightAngle() {
@@ -390,17 +391,33 @@ void Conducteur::_onIntersection(int dist) {
   }
 }
 
+
 void Conducteur::_iTurnState(int angle, IntersectionState nextState) {
   static double targetAngle = 0;
   static bool firstTime = true;
+  static unsigned long lastTurn = 0;
 
   if (firstTime) {
     firstTime = false;
+
+    _delayRunning = true;
+    lastTurn = _currentTime;
 
     SetAngle(angle);
     _gyro.update();
     double start = _gyro.getAngleZ();
     targetAngle = start + _angle;
+  }
+
+  if (_delayRunning) {
+      if (_currentTime - lastTurn < _afterFollowDelay) {
+          _encoderRight.setMotorPwm(-_speed);
+          _encoderLeft.setMotorPwm(_speed);
+          return;
+      }
+
+      _delayRunning = false;
+      _Stop();
   }
 
   if (!_rotateTo(targetAngle)) return;
