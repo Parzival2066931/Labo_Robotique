@@ -4,12 +4,13 @@
 
 
 
-float normalSpeed = 60;
-float slowSpeed = 100;
-float turnSpeed = 100;
+float normalSpeed = 100;
+float slowSpeed = 120;
+float turnSpeed = 70;
 float minSpeed = 50;
 float maxSpeed = 255;
 int slowDist = 50;
+int dist;
 
 unsigned long currentTime = 0;
 
@@ -21,6 +22,17 @@ enum CruzeControlState {
     VIGILANCE
 };
 CruzeControlState speedState = NORMAL;
+
+enum IntersectionState {
+    NONE,
+    I_IDLE,
+    I_TURN_90,
+    I_CHECK_1,
+    I_TURN_180,
+    I_CHECK_2
+};
+IntersectionState iState = I_IDLE;
+bool deliveryDone = false;
 
 
 void setup() {
@@ -40,9 +52,14 @@ void setup() {
 void loop() {
     currentTime = millis();
 
-    speedUpdate();
+    
+
     sonar.Update();
-    conducteur.Update();
+    
+    dist = sonar.GetDist(); 
+    conducteur.Update(dist);
+
+    speedUpdate();
 }
 
 void speedUpdate() {
@@ -65,7 +82,7 @@ void normalState() {
         conducteur.SetSpeed(normalSpeed);
     }
 
-    bool transition = sonar.GetDist() < slowDist;
+    bool transition = dist < slowDist;
     if(transition) firstTime = true; speedState = VIGILANCE;
 }
 
@@ -78,7 +95,7 @@ void slowState() {
         conducteur.SetSpeed(slowSpeed);
     }
 
-    bool transition = sonar.GetDist() > slowDist;
+    bool transition = dist > slowDist;
     if(transition) firstTime = true; speedState = NORMAL;
 }
 

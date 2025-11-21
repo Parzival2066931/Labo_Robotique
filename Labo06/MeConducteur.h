@@ -31,8 +31,16 @@ enum FollowState {
   ON_LINE,
   TURN_RIGHT,
   TURN_LEFT,
-  NO_LINE
-  //INTERSECTION
+  NO_LINE,
+  INTERSECTION
+};
+
+enum IntersectionState {
+  I_NONE,
+  I_TURN_90,
+  I_CHECK_1,
+  I_TURN_180,
+  I_CHECK_2
 };
 
 
@@ -49,6 +57,9 @@ private:
   ConducteurState _cState;
   DriveState _dState;
   FollowState _fState;
+  IntersectionState _iState;
+
+
 
   double _kp = 1;
   double _ki = 1;
@@ -62,10 +73,16 @@ private:
   int _speed;
   int _turnSpeed;
   int _angle;
+  int _limitDist;
+
+  bool _delayRunning;
+  int _afterFollowDelay;
+  unsigned long _currentTime;
 
   bool _firstTime;
   bool _fSubFirstTime;
   bool _turnSuccess;
+  bool _deliveryDone;
 
   void _Stop();
   void _TurnRight();
@@ -75,13 +92,17 @@ private:
   void _TurnLeft();
   void _TurnLeftTo();
 
-  void _FollowLine();
+  void _FollowLine(int dist);
   void _Calibrate_IR();
   bool _rotateTo(double targetAngle);
   void _noLineState();
   void _onLineState();
   void _onRightAngle();
-  void _onIntersection();
+  void _onIntersection(int dist);
+
+  void _iTurnState(int angle, IntersectionState nextState);
+  void _iCheck1State(int dist);
+  void _iCheck2State(int dist);
 
   void _isr_process_encoder1(void);
   void _isr_process_encoder2(void);
@@ -91,7 +112,8 @@ public:
   Conducteur();
 
   void Setup();
-  void Update();
+  void Update(int obstacleDist);
+
   void SetMaxSpeed(int speed);
   void SetMinSpeed(int speed);
   void SetAngle(int angle);
@@ -103,6 +125,7 @@ public:
   void SetTrackerPID(double p, double i, double d);
   void SetDistance(float distance);
   void SetDriveMode(DriveState state);
+
   int GetPinRight() const;
   int GetPinLeft() const;
   static void GetIsrRight();
@@ -111,6 +134,9 @@ public:
   ConducteurState GetState() const;
   bool GetTurnState() const;
   long GetDistToGo() const;
-  float Conducteur::GetDistanceTraveled();
-  void Conducteur::DebugPrint();
+  float GetDistanceTraveled();
+
+  void DebugPrint();
+
+  bool IsDeliveryDone() const { return _deliveryDone; }
 };

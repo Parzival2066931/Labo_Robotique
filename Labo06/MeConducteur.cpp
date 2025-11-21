@@ -47,8 +47,15 @@ void Conducteur::Setup() {
   _cState = STOP;
   _dState = FREE;
   _fState = ON_LINE;
+  _iState = I_NONE;
 
   _firstTime = true;
+  _fSubFirstTime = true;
+  _deliveryDone = false;
+
+  _afterFollowDelay = 70;
+  _delayRunning = false;
+  _limitDist = 50;
 
   //encodeurs
 
@@ -74,7 +81,9 @@ void Conducteur::Setup() {
   Serial.println("Setup completed for [Conducteur]");
 }
 
-void Conducteur::Update() {
+void Conducteur::Update(int obstacleDist) {
+  _currentTime = millis();
+
   _encoderRight.loop();
   _encoderLeft.loop();
 
@@ -105,7 +114,7 @@ void Conducteur::Update() {
       else _TurnLeft();
       break;
     case FOLLOW:
-      _FollowLine();
+      _FollowLine(obstacleDist);
       break;
   }
 }
@@ -213,7 +222,7 @@ void Conducteur::_Drive() {
 
 
 
-void Conducteur::_FollowLine() {
+void Conducteur::_FollowLine(int dist) {
 
   _tracker.Update();
 
@@ -228,9 +237,9 @@ void Conducteur::_FollowLine() {
     case NO_LINE:
       _noLineState();
       break;
-    //case INTERSECTION:
-      //_intersectionState();
-      //break;
+    case INTERSECTION:
+      _onIntersection(dist);
+      break;
   }
 }
 
@@ -290,6 +299,8 @@ void Conducteur::_noLineState() {
 }
 
 void Conducteur::_onLineState() {
+  static unsigned long lastTurn = 0;
+
   if(_fSubFirstTime) {
     _fSubFirstTime = false;
 
@@ -309,35 +320,111 @@ void Conducteur::_onLineState() {
   bool noLineTransition = _tracker.IsNoLine();
   bool rightTransition = _tracker.IsRightAngleRight();
   bool leftTransition = _tracker.IsRightAngleLeft();
-  //transition pour le T à venir
+  bool intersectionTransition = _tracker.IsIntersection();
 
-  if(noLineTransition) SetFState(NO_LINE);
-  else if(rightTransition) SetFState(TURN_RIGHT);
-  else if(leftTransition) SetFState(TURN_LEFT);
+  if(noLineTransition) { SetFState(NO_LINE); return; }
+  if(rightTransition) { SetFState(TURN_RIGHT); return; }
+  if(leftTransition) { SetFState(TURN_LEFT); return; }
+  if(intersectionTransition) { _iState = I_TURN_90; SetFState(INTERSECTION); }
 }
 
 void Conducteur::_onRightAngle() {
-  static double targetAngle = 0;
+    static double targetAngle = 0;
+    static unsigned long lastTurn = 0;
 
-  if(_fSubFirstTime) {
-    _fSubFirstTime = false;
+    if (_fSubFirstTime) {
+        _fSubFirstTime = false;
 
-    int angle = (_fState == TURN_LEFT) ? -90 : 90;
+        _delayRunning = true;
+        lastTurn = _currentTime;
 
-    _Stop();
-    SetAngle(angle);
+        int angle = (_fState == TURN_LEFT) ? -90 : 90;
+        SetAngle(angle);
 
-    _gyro.update();
-    double startAngle = _gyro.getAngleZ();
-    targetAngle = startAngle + _angle;
-  }
+        _gyro.update();
+        double startAngle = _gyro.getAngleZ();
+        targetAngle = startAngle + _angle;
+    }
 
-  bool transition = _rotateTo(targetAngle);
-  if(transition) {
-    _Stop();
-    SetFState(ON_LINE);
+    if (_delayRunning) {
+        if (_currentTime - lastTurn < _afterFollowDelay) {
+            _encoderRight.setMotorPwm(-_speed);
+            _encoderLeft.setMotorPwm(_speed);
+            return;
+        }
+
+        _delayRunning = false;
+        _Stop();
+    }
+
+    bool transition = _rotateTo(targetAngle);
+    if (transition) {
+        _Stop();
+        SetFState(ON_LINE);
+    }
+}
+
+void Conducteur::_onIntersection(int dist) {
+  switch (_iState) {
+
+    case I_TURN_90:
+      _iTurnState(-90, I_CHECK_1);
+      break;
+
+    case I_CHECK_1:
+      _iCheck1State(dist);
+      break;
+
+    case I_TURN_180:
+      _iTurnState(180, I_CHECK_2);
+      break;
+
+    case I_CHECK_2:
+      _iCheck2State(dist);
+      break;
+
+    case I_NONE:
+    default:
+      SetFState(ON_LINE);
+      break;
   }
 }
+
+void Conducteur::_iTurnState(int angle, IntersectionState nextState) {
+  static double targetAngle = 0;
+  static bool firstTime = true;
+
+  if (firstTime) {
+    firstTime = false;
+
+    SetAngle(angle);
+    _gyro.update();
+    double start = _gyro.getAngleZ();
+    targetAngle = start + _angle;
+  }
+
+  if (!_rotateTo(targetAngle)) return;
+
+  _Stop();
+  firstTime = true;
+  _iState = nextState;
+}
+
+void Conducteur::_iCheck1State(int dist) {
+    if (dist < _limitDist) {
+      _iState = I_TURN_180;
+      return;
+    }
+    _iState = I_NONE;
+    SetFState(ON_LINE);
+}
+
+void Conducteur::_iCheck2State(int dist) {
+    if (dist < _limitDist) _deliveryDone = true;
+    _iState = I_NONE;
+    SetFState(ON_LINE);
+}
+
 
 
 
