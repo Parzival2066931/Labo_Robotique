@@ -53,7 +53,7 @@ void Tracker::Calibrate_IR() {
     _capteur[i].val = ss.analogRead(i);
     if(_capteur[i].min > _capteur[i].val) _SetMinVal(_capteur[i].val, i);
     if(_capteur[i].max < _capteur[i].val) _SetMaxVal(_capteur[i].val, i);
-    _capteur[i].seuil = _capteur[i].min + 300;
+    _capteur[i].seuil = _capteur[i].min + 400;
   }
 }
 
@@ -75,7 +75,7 @@ void Tracker::DebugPrint() {
   for (int i = 0; i < NB_IR; i++) {
     
     Serial.print("Pin "); Serial.print(i);
-    Serial.print(" = "); Serial.print(ss.analogRead(i));
+    Serial.print(" = "); Serial.print(_capteur[i].onLine);
     Serial.print("\t");
   }
   Serial.print(" | Pos = ");
@@ -118,4 +118,16 @@ bool Tracker::IsIntersection() const {
     for (int i = 0; i < NB_IR; i++)
         if (!_capteur[i].onLine) return false;
     return true;
+}
+
+void Tracker::ResetValues() {
+  for (int i = 0; i < NB_IR; i++) {
+    _capteur[i].min = 1023;
+    _capteur[i].max = 0;
+    _capteur[i].normal_val = 0;
+    _capteur[i].val = 0;
+    _capteur[i].onLine = false;
+    _capteur[i].seuil = 0;
+  }
+  
 }

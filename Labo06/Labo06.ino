@@ -11,7 +11,7 @@ bool firstAuto = true;
 
 float distance = 0;
 float normalSpeed = 70;
-float slowSpeed = 100;
+float slowSpeed = 120;
 float turnSpeed = 70;
 float minSpeed = 50;
 float maxSpeed = 255;
@@ -24,7 +24,7 @@ const int beepRate = 500;
 const int backwardPWM = 200;
 const int klaxonFreq = 420;
 
-double trackerKp = 0.75;
+double trackerKp = 0.5;
 double trackerKi = 0;
 double trackerKd = 0;
 
@@ -140,7 +140,8 @@ void slowState() {
 
 void debugTask() {
     static unsigned long lastDebug = 0;
-    if(currentTime - lastDebug < debugDelay) return;
+    if(currentTime - lastDebug < printDelay) return;
+    lastDebug = currentTime;
 
     conducteur.DebugPrint();
 }
@@ -269,9 +270,9 @@ void parseData(String& receivedData) {
   }
 
 
-  if (debugMode) {
-    conducteur.DebugPrint();
-  }
+//   if (debugMode) {
+//     conducteur.DebugPrint();
+//   }
 
 
   int firstComma = receivedData.indexOf(',');
@@ -371,9 +372,9 @@ void handleCommandWithParams(String command, String params) {
       Serial.print(F("Commande Changement de vitesse reçue avec paramètres : "));
       Serial.println(params);
 
-      normalSpeed = params.toFloat();
+      slowSpeed = params.toFloat();
 
-      conducteur.SetSpeed(normalSpeed);
+      conducteur.SetSpeed(slowSpeed);
 
       break;
 
@@ -381,6 +382,12 @@ void handleCommandWithParams(String command, String params) {
       Serial.print(F("Commande LIGHT reçue avec paramètres : "));
       Serial.println(params);
       commandLight(params);
+      break;
+    
+    case 'P':
+      Serial.print(F("Commande Set Kp reçue avec paramêtre : "));
+      Serial.println(params);
+      trackerKp = params.toDouble();
       break;
 
     default:

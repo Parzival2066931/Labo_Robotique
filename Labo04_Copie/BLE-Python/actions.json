@@ -20,7 +20,7 @@
       "label": "Stop"
     },
     {
-      "key": "C",
+      "key": "c",
       "data": "C",
       "label": "Calibration"
     }

@@ -53,7 +53,7 @@ void Conducteur::Setup() {
   _fSubFirstTime = true;
   _deliveryDone = false;
 
-  _afterFollowDelay = 500;
+  _afterFollowDelay = 400;
   _delayRunning = false;
   _limitDist = 40;
 
@@ -86,6 +86,8 @@ void Conducteur::Update(int obstacleDist = 0) {
 
   _encoderRight.loop();
   _encoderLeft.loop();
+
+  _tracker.Update();
 
   // DebugPrint();  
 
@@ -224,7 +226,7 @@ void Conducteur::_Drive() {
 
 void Conducteur::_FollowLine(int dist) {
 
-  _tracker.Update();
+  
 
   switch(_fState) {
     case ON_LINE:
@@ -253,6 +255,7 @@ void Conducteur::_Calibrate_IR() {
   if (_firstTime) {
     _firstTime = false;
 
+    _tracker.ResetValues();
     _gyro.update();
     startAngle = _gyro.getAngleZ();
     target = startAngle - _angle;
@@ -301,11 +304,14 @@ void Conducteur::_noLineState() {
 void Conducteur::_onLineState() {
   static unsigned long lastTurn = 0;
 
+
+
   if(_fSubFirstTime) {
     _fSubFirstTime = false;
 
     _trackerPid.ResetValues();
     _trackerPid.SetTarget(0);
+    Serial.println("Entrée dans l'état ON_LINE");
   }
 
   _tracker.Update();
@@ -322,7 +328,7 @@ void Conducteur::_onLineState() {
   bool leftTransition = _tracker.IsRightAngleLeft();
   bool intersectionTransition = _tracker.IsIntersection();
 
-  if(intersectionTransition) { _iState = I_TURN_90; SetFState(INTERSECTION); return; }
+  if(intersectionTransition) { Serial.println("Entrée dans l'état INTERSECTION"); _iState = I_TURN_90; SetFState(INTERSECTION); return; }
   if(noLineTransition) { SetFState(NO_LINE); return; }
   if(rightTransition) { SetFState(TURN_RIGHT); return; }
   if(leftTransition) { SetFState(TURN_LEFT); }
@@ -345,6 +351,8 @@ void Conducteur::_onRightAngle() {
         _gyro.update();
         double startAngle = _gyro.getAngleZ();
         targetAngle = startAngle + _angle;
+
+        Serial.println("Je TOURNE");
     }
 
     if (_delayRunning) {
@@ -369,6 +377,7 @@ void Conducteur::_onIntersection(int dist) {
   switch (_iState) {
 
     case I_TURN_90:
+      Serial.println("Je tourne à gauche");
       _iTurnState(-90, I_CHECK_1);
       break;
 

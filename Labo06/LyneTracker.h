@@ -47,4 +47,5 @@ public:
   bool IsIntersection() const;
 
   void DebugPrint();
+  void ResetValues();
 };
