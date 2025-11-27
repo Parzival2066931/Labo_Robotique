@@ -21,6 +21,10 @@ private:
   unsigned long _lastCalibration = 0;
   int _calibrationDelay = 10;
 
+  unsigned long _lastDebug = 0;
+  const unsigned long _debugInterval = 100;   // imprime max 10 fois / sec
+
+
   void _SetMinVal(int value, int index);
   void _SetMaxVal(int value, int index);
 

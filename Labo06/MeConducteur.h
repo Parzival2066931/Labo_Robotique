@@ -100,7 +100,8 @@ private:
   void _onRightAngle();
   void _onIntersection(int dist);
 
-  void _iTurnState(int angle, IntersectionState nextState);
+  void _iFollowTurn();
+  void _iDetectionTurn();
   void _iCheck1State(int dist);
   void _iCheck2State(int dist);
 
@@ -132,11 +133,14 @@ public:
   static void GetIsrLeft();
   int GetSpeed() const;
   ConducteurState GetState() const;
+  FollowState GetFState() const;
   bool GetTurnState() const;
   long GetDistToGo() const;
   float GetDistanceTraveled();
 
   void DebugPrint();
 
-  bool IsDeliveryDone() const { return _deliveryDone; }
+  bool IsDeliveryDone() const 
+  bool IsIntersection() const;
+
 };

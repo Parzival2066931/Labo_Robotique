@@ -8,11 +8,12 @@
 
 bool debugMode = false;
 bool firstAuto = true;
+bool firstFollow = true;
 
 float distance = 0;
-float normalSpeed = 70;
-float slowSpeed = 120;
-float turnSpeed = 70;
+float normalSpeed = 100;
+float slowSpeed = 50;
+float turnSpeed = 50;
 float minSpeed = 50;
 float maxSpeed = 255;
 int slowDist = 50;
@@ -24,7 +25,7 @@ const int beepRate = 500;
 const int backwardPWM = 200;
 const int klaxonFreq = 420;
 
-double trackerKp = 0.5;
+double trackerKp = 0.35;
 double trackerKi = 0;
 double trackerKd = 0;
 
@@ -51,6 +52,16 @@ enum CruzeControlState {
     VIGILANCE
 };
 CruzeControlState speedState = NORMAL;
+
+enum DeliveryState {
+  WAITING,
+  ONLINE,
+  OFFLINE,
+  INTERSECT,
+  PARKING
+}
+DeliveryState dState = WAITING;
+
 
 void setup() {
     Serial.begin(115200);
@@ -84,7 +95,6 @@ void loop() {
     
     dist = sonar.GetDist(); 
     conducteur.Update(dist);
-    
 
     speedUpdate();
 
@@ -92,13 +102,70 @@ void loop() {
 
     switch (aState) {
         case AUTO:
-            avanceAuto();
+            followManager();
             break;
         case LIBRE:
             break;
     }
 
     if(debugMode) debugTask();
+}
+
+void followManager() {
+  switch(dState) {
+    case WAITING: { fWaitingState(); break; }
+    case ONLINE: { fOnLineState(); break; }
+    case OFFLINE: { fOffLineState(); break; }
+    case INTERSECT: { fIntersectionState(); break; }
+    case DELIVERY: { fDeliveryState(); break; }
+  }
+}
+
+void fWaitingState() {
+  if(firstFollow) {
+    firstFollow = false;
+  }
+  bool onLineTransition = conducteur.GetFState() == ON_LINE;
+  bool offLineTransition = conducteur.GetFState() == NO_LINE;
+  bool intersectionTransition = conducteur.GetFState() == INTERSECTION;
+  bool deliveryTransition = conducteur.IsDeliveryDone();
+
+  if (onLineTransition) { SetFState(ONLINE); return; }
+  if (offLineTransition) { SetFState(OFFLINE); return; }
+  if (intersectionTransition) { SetFState(INTERSECT); return; }
+  if (deliveryTransition) { SetFState(DELIVERY); }
+}
+
+void fOnLineState() {
+
+}
+
+void fOffLineState() {
+
+}
+
+void fIntersectionState() {
+
+}
+
+void fDeliveryState() {
+  if(firstFollow) {
+    firstFollow = false;
+
+    conducteur.SetAngle(90);
+    conducteur.SetState(LTURNING);
+  }
+
+  if(!conducteur.GetTurnState()) return;
+
+  conducteur.SetDriveMode(FREE);
+  conducteur.SetState(BACKWARD);
+
+  if(!conducteur.IsIntersection()) return;
+
+  conducteur.SetState(STOP);
+  //action à faire un coup la livraison terminé
+
 }
 
 void speedUpdate() {
@@ -122,7 +189,7 @@ void normalState() {
     }
 
     bool transition = dist < slowDist;
-    if(transition) firstTime = true; speedState = VIGILANCE;
+    if(transition) { firstTime = true; speedState = VIGILANCE; }
 }
 
 void slowState() {
@@ -135,7 +202,7 @@ void slowState() {
     }
 
     bool transition = dist > slowDist;
-    if(transition) firstTime = true; speedState = NORMAL;
+    if(transition) { firstTime = true; speedState = NORMAL; }
 }
 
 void debugTask() {
@@ -270,9 +337,7 @@ void parseData(String& receivedData) {
   }
 
 
-//   if (debugMode) {
-//     conducteur.DebugPrint();
-//   }
+
 
 
   int firstComma = receivedData.indexOf(',');
@@ -372,9 +437,9 @@ void handleCommandWithParams(String command, String params) {
       Serial.print(F("Commande Changement de vitesse reçue avec paramètres : "));
       Serial.println(params);
 
-      slowSpeed = params.toFloat();
+      normalSpeed = params.toFloat();
 
-      conducteur.SetSpeed(slowSpeed);
+      conducteur.SetSpeed(normalSpeed);
 
       break;
 
@@ -452,7 +517,12 @@ void setAState(avanceState s) {
   firstAuto = true;
 }
 
+void setDState(DeliveryState s) {
+  if (fState == s) return;
 
+  fState = s;
+  firstFollow = true;
+}
 
 bool switchBoolTask(int delay) {
   static unsigned long lastTime = 0;
@@ -464,5 +534,4 @@ bool switchBoolTask(int delay) {
     state = !state;
   }
 
-  return state;
-}
+  return sta

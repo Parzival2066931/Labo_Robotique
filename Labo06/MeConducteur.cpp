@@ -53,7 +53,7 @@ void Conducteur::Setup() {
   _fSubFirstTime = true;
   _deliveryDone = false;
 
-  _afterFollowDelay = 400;
+  _afterFollowDelay = 300;
   _delayRunning = false;
   _limitDist = 40;
 
@@ -127,6 +127,10 @@ int Conducteur::GetSpeed() const {
 
 ConducteurState Conducteur::GetState() const {
   return _cState;
+}
+
+FollowState Conducteur::GetFState() const {
+    return _fState;
 }
 
 bool Conducteur::GetTurnState() const {
@@ -226,8 +230,6 @@ void Conducteur::_Drive() {
 
 void Conducteur::_FollowLine(int dist) {
 
-  
-
   switch(_fState) {
     case ON_LINE:
       _onLineState();
@@ -302,38 +304,59 @@ void Conducteur::_noLineState() {
 }
 
 void Conducteur::_onLineState() {
-  static unsigned long lastTurn = 0;
+    static unsigned long lastSeenLine = 0;
+
+    if (_fSubFirstTime) {
+        _fSubFirstTime = false;
+        _trackerPid.ResetValues();
+        _trackerPid.SetTarget(0);
+        Serial.println("Entrée dans l'état ON_LINE");
+    }
+
+    _tracker.Update();
+
+    // PID suivi de ligne
+    _trackerPid.SetValue(_tracker.GetLinePosition());
+    _trackerPid.Update();
+    double correction = _trackerPid.GetCorrection();
+
+    _encoderRight.setMotorPwm(-_speed + correction);
+    _encoderLeft.setMotorPwm(_speed + correction);
+
+    bool rawNoLine = _tracker.IsNoLine();
+    bool rightTransition = _tracker.IsRightAngleRight();
+    bool leftTransition  = _tracker.IsRightAngleLeft();
+    bool intersectionTransition = _tracker.IsIntersection();
+
+    if (!rawNoLine) {
+        lastSeenLine = _currentTime;
+    }
+    bool noLineTransition = rawNoLine && (_currentTime - lastSeenLine > 100);
 
 
+    if (intersectionTransition) {
+      Serial.println("Entrée dans l'état INTERSECTION");
+      _iState = I_TURN_90;
+      SetFState(INTERSECTION);
+      return;
+    }
 
-  if(_fSubFirstTime) {
-    _fSubFirstTime = false;
+    if (noLineTransition) {
+      SetFState(NO_LINE);
+      return;
+    }
 
-    _trackerPid.ResetValues();
-    _trackerPid.SetTarget(0);
-    Serial.println("Entrée dans l'état ON_LINE");
-  }
+    if (rightTransition) {
+      SetFState(TURN_RIGHT);
+      return;
+    }
 
-  _tracker.Update();
-
-  _trackerPid.SetValue(_tracker.GetLinePosition());
-  _trackerPid.Update();
-  double correction = _trackerPid.GetCorrection();
-
-  _encoderRight.setMotorPwm(-_speed + correction);
-  _encoderLeft.setMotorPwm(_speed + correction);
-
-  bool noLineTransition = _tracker.IsNoLine();
-  bool rightTransition = _tracker.IsRightAngleRight();
-  bool leftTransition = _tracker.IsRightAngleLeft();
-  bool intersectionTransition = _tracker.IsIntersection();
-
-  if(intersectionTransition) { Serial.println("Entrée dans l'état INTERSECTION"); _iState = I_TURN_90; SetFState(INTERSECTION); return; }
-  if(noLineTransition) { SetFState(NO_LINE); return; }
-  if(rightTransition) { SetFState(TURN_RIGHT); return; }
-  if(leftTransition) { SetFState(TURN_LEFT); }
-  
+    if (leftTransition) {
+      SetFState(TURN_LEFT);
+      return;
+    }
 }
+
 
 void Conducteur::_onRightAngle() {
     static double targetAngle = 0;
@@ -378,7 +401,7 @@ void Conducteur::_onIntersection(int dist) {
 
     case I_TURN_90:
       Serial.println("Je tourne à gauche");
-      _iTurnState(-90, I_CHECK_1);
+      _iFollowTurn();
       break;
 
     case I_CHECK_1:
@@ -386,7 +409,7 @@ void Conducteur::_onIntersection(int dist) {
       break;
 
     case I_TURN_180:
-      _iTurnState(180, I_CHECK_2);
+      _iDetectionTurn();
       break;
 
     case I_CHECK_2:
@@ -401,7 +424,7 @@ void Conducteur::_onIntersection(int dist) {
 }
 
 
-void Conducteur::_iTurnState(int angle, IntersectionState nextState) {
+void Conducteur::_iFollowTurn() {
   static double targetAngle = 0;
   static bool firstTime = true;
   static unsigned long lastTurn = 0;
@@ -412,7 +435,7 @@ void Conducteur::_iTurnState(int angle, IntersectionState nextState) {
     _delayRunning = true;
     lastTurn = _currentTime;
 
-    SetAngle(angle);
+    SetAngle(-88);
     _gyro.update();
     double start = _gyro.getAngleZ();
     targetAngle = start + _angle;
@@ -433,7 +456,27 @@ void Conducteur::_iTurnState(int angle, IntersectionState nextState) {
 
   _Stop();
   firstTime = true;
-  _iState = nextState;
+  _iState = I_CHECK_1;
+}
+
+void Conducteur::_iDetectionTurn() {
+  static double targetAngle = 0;
+  static bool firstTime = true;
+
+  if (firstTime) {
+    firstTime = false;
+
+    SetAngle(180);
+    _gyro.update();
+    double start = _gyro.getAngleZ();
+    targetAngle = start + _angle;
+  }
+
+  if (!_rotateTo(targetAngle)) return;
+
+  _Stop();
+  firstTime = true;
+  _iState = I_CHECK_2;
 }
 
 void Conducteur::_iCheck1State(int dist) {
@@ -448,7 +491,6 @@ void Conducteur::_iCheck1State(int dist) {
 void Conducteur::_iCheck2State(int dist) {
     if (dist < _limitDist) _deliveryDone = true;
     _iState = I_NONE;
-    SetFState(ON_LINE);
 }
 
 
@@ -460,39 +502,26 @@ void Conducteur::_TurnRight() {
 }
 
 void Conducteur::_TurnRightTo() {
-  static float startAngle = 0;
-  static float target = 0;
-  float currentAngle = 0;
-  float deltaAngle = 0;
-  bool transition = false;
+    static double targetAngle = 0;
 
-  if (_firstTime) {
-    _firstTime = false;
-    _turnSuccess = false;
-    _gyro.update();
-    startAngle = _gyro.getAngleZ();
-    target = startAngle + _angle;
-  }
+    if (firstTime) {
+        _firstTime = false;
+        _turnSuccess = false;
 
-  _encoderRight.setMotorPwm(_turnSpeed);
-  _encoderLeft.setMotorPwm(_turnSpeed);
+        _gyro.update();
+        double start = _gyro.getAngleZ();
 
-  _gyro.update();
-  currentAngle = _gyro.getAngleZ();
+        SetAngle(_angle);               
+        targetAngle = start + _angle;
+    }
 
-  deltaAngle = currentAngle - target;
-  if (deltaAngle > 180) deltaAngle -= 360;
-  if (deltaAngle < -180) deltaAngle += 360;
+    if (!_rotateTo(targetAngle)) return;
 
-  transition = fabs(deltaAngle) <= 2;
-
-  if (transition) {
     _turnSuccess = true;
     _cState = STOP;
 
     _gyroPid.ResetValues();
     _gyroPid.SetTarget(_gyro.getAngleZ());
-  }
 }
 
 void Conducteur::_TurnLeft() {
@@ -501,42 +530,26 @@ void Conducteur::_TurnLeft() {
 }
 
 void Conducteur::_TurnLeftTo() {
-  static float startAngle = 0;
-  static float target = 0;
-  float currentAngle = 0;
-  float deltaAngle = 0;
-  bool transition = false;
+    static double targetAngle = 0;
 
-  if (_firstTime) {
-    _firstTime = false;
-    _turnSuccess = false;
+    if (firstTime) {
+      _firstTime = false;
+      _turnSuccess = false;
 
-    _gyro.update();
-    startAngle = _gyro.getAngleZ();
-    target = startAngle - _angle;
-  }
+      _gyro.update();
+      double start = _gyro.getAngleZ();
 
-  _encoderRight.setMotorPwm(-_turnSpeed);
-  _encoderLeft.setMotorPwm(-_turnSpeed);
+      targetAngle = start - _angle;
+    }
 
-  _gyro.update();
-  currentAngle = _gyro.getAngleZ();
+    if (!_rotateTo(targetAngle)) return;
 
-  deltaAngle = currentAngle - target;
-  if (deltaAngle > 180) deltaAngle -= 360;
-  if (deltaAngle < -180) deltaAngle += 360;
-
-  transition = fabs(deltaAngle) <= 2;
-
-  if (transition) {
     _turnSuccess = true;
     _cState = STOP;
-  }
+
+    _gyroPid.ResetValues();
+    _gyroPid.SetTarget(_gyro.getAngleZ());
 }
-
-
-
-
 
 void Conducteur::SetAngle(int angle) {
   _angle = angle;
@@ -623,10 +636,14 @@ bool Conducteur::_rotateTo(double targetAngle) {
     bool reached = (fabs(delta) <= 2);
 
     if (!reached) {
-      int speed = (_fState == TURN_LEFT) ? -_turnSpeed : _turnSpeed;
+      int speed = (delta > 0) ? -_turnSpeed : _turnSpeed;
       _encoderRight.setMotorPwm(speed);
       _encoderLeft.setMotorPwm(speed);
     }
 
     return reached;
 }
+
+bool Conducteur::IsDeliveryDone() const { return _deliveryDone; }
+
+bool Conducteur::IsIntersection() const { return _tracker.IsIntersection(); }

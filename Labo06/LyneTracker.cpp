@@ -53,7 +53,7 @@ void Tracker::Calibrate_IR() {
     _capteur[i].val = ss.analogRead(i);
     if(_capteur[i].min > _capteur[i].val) _SetMinVal(_capteur[i].val, i);
     if(_capteur[i].max < _capteur[i].val) _SetMaxVal(_capteur[i].val, i);
-    _capteur[i].seuil = _capteur[i].min + 400;
+    _capteur[i].seuil = (_capteur[i].min + _capteur[i].max) / 2;  
   }
 }
 
@@ -66,7 +66,7 @@ int Tracker::_capteurLectureNormalisee(int index) {
 void Tracker::_normalizeValues() {
   for(int i = 0; i < NB_IR; i++) {
     _capteur[i].normal_val = _capteurLectureNormalisee(i);
-    _capteur[i].onLine = (_capteur[i].normal_val < _capteur[i].seuil);
+    _capteur[i].onLine = (_capteur[i].val < _capteur[i].seuil); //on doit comparer avec normal_val ou val???
   }
 }
 
