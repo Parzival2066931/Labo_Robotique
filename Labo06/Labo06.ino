@@ -1,4 +1,5 @@
 #include <Adafruit_seesaw.h>
+#include <ArduinoJson.h>
 #include "MeConducteur.h"
 #include "Sonar.h"
 #include "MeAnneau.h"
@@ -9,14 +10,29 @@
 bool debugMode = false;
 bool firstAuto = true;
 bool firstFollow = true;
+bool firstVigilance = true;
 
-float distance = 0;
+unsigned long countdownTimer = 0;
+bool firstMission = true;
+int countdownValue = 3;
+int countCheckpoint = 0;
+bool newCheckpoint = false;
+bool hasPackage = false;
+int turnDelay = 300;
+int noLineDelay = 150;
+int distUntil = 10; 
+
+bool firstFind = true;
+bool firstPackage = true;
+
+
 float normalSpeed = 100;
 float slowSpeed = 50;
-float turnSpeed = 50;
+float turnSpeed = 70;
 float minSpeed = 50;
 float maxSpeed = 255;
 int slowDist = 50;
+int grabPackageDist = 20;
 int dist;
 int printDelay = 1000;
 
@@ -25,20 +41,14 @@ const int beepRate = 500;
 const int backwardPWM = 200;
 const int klaxonFreq = 420;
 
-double trackerKp = 0.35;
-double trackerKi = 0;
-double trackerKd = 0;
+double trackerKp = 0.4;
+double trackerKi = 0.01;
+double trackerKd = 0.01;
 
 double gyroKp = 9;
 double gyroKi = 1;
 double gyroKd = 3;
 
-
-enum avanceState {
-  AUTO,
-  LIBRE
-};
-avanceState aState;
 
 unsigned long currentTime = 0;
 
@@ -47,113 +57,320 @@ Conducteur conducteur;
 Sonar sonar;
 ezBuzzer buzzer(BUZZER_PIN);
 
+
+
 enum CruzeControlState {
     NORMAL,
     VIGILANCE
 };
 CruzeControlState speedState = NORMAL;
 
-enum DeliveryState {
+enum MissionState {
+  COUNTDOWN,
+  FIND_LINE,
+  CHECKPOINT,
+  M_ON_LINE,
+  PACKAGE_SEARCH,
+  DELIVER_PACKAGE,
+  MANUAL,
+  UNTIL,
+  ARRIVED
+};
+MissionState mState = MANUAL;
+
+enum FindState {
+  INIT,
   WAITING,
-  ONLINE,
-  OFFLINE,
-  INTERSECT,
-  PARKING
-}
-DeliveryState dState = WAITING;
+  TURNING
+};
+FindState findState = INIT;
+
+enum PackageSearchState {
+  PS_INIT,
+  PS_APPROACH,
+  PS_RETURN
+};
+PackageSearchState psState = PS_INIT;
 
 
 void setup() {
-    Serial.begin(115200);
-    attachInterrupt(conducteur.GetPinRight(), Conducteur::GetIsrRight, RISING);
-    attachInterrupt(conducteur.GetPinLeft(), Conducteur::GetIsrLeft, RISING);
+  Serial.begin(115200);
+  attachInterrupt(conducteur.GetPinRight(), Conducteur::GetIsrRight, RISING);
+  attachInterrupt(conducteur.GetPinLeft(), Conducteur::GetIsrLeft, RISING);
 
-    conducteur.Setup();
-    anneau.Setup();
-    sonar.Setup();
+  conducteur.Setup();
+  anneau.Setup();
+  sonar.Setup();
 
-    conducteur.SetGyroPID(0, 0, 0);
-    conducteur.SetTrackerPID(0, 0, 0);
+  conducteur.SetGyroPID(0, 0, 0);
+  conducteur.SetTrackerPID(0, 0, 0);
 
-    conducteur.SetTurnSpeed(turnSpeed);
-    conducteur.SetMinSpeed(minSpeed);
-    conducteur.SetMaxSpeed(maxSpeed);
-    conducteur.SetSpeed(normalSpeed);
-    conducteur.SetState(STOP);
+  conducteur.SetTurnSpeed(turnSpeed);
+  conducteur.SetMinSpeed(minSpeed);
+  conducteur.SetMaxSpeed(maxSpeed);
+  conducteur.SetSpeed(normalSpeed);
+  conducteur.SetState(STOP);
 
-    buzzer.stop();
+  buzzer.stop();
 
-    aState = LIBRE;
+  mState = MANUAL;
+  
 }
 
 void loop() {
-    currentTime = millis();
+  currentTime = millis();
 
-    
+  
 
-    sonar.Update();
-    
-    dist = sonar.GetDist(); 
-    conducteur.Update(dist);
+  sonar.Update();
+  
+  dist = sonar.GetDist(); 
+  conducteur.Update(dist);
 
-    speedUpdate();
+  speedUpdate();
 
-    buzzer.loop();
+  missionUpdate();
 
-    switch (aState) {
-        case AUTO:
-            followManager();
-            break;
-        case LIBRE:
-            break;
-    }
+  buzzer.loop();
 
-    if(debugMode) debugTask();
+
+  serialTask();
+  if(debugMode) debugTask();
 }
 
-void followManager() {
-  switch(dState) {
-    case WAITING: { fWaitingState(); break; }
-    case ONLINE: { fOnLineState(); break; }
-    case OFFLINE: { fOffLineState(); break; }
-    case INTERSECT: { fIntersectionState(); break; }
-    case DELIVERY: { fDeliveryState(); break; }
+void missionUpdate() {
+  switch (mState) {
+    case COUNTDOWN:         
+      missionCountdown();      
+      break;
+    case FIND_LINE:           
+      missionFindLine();       
+      break;
+    case CHECKPOINT:        
+      missionCheckpoint();     
+      break;
+    case M_ON_LINE:         
+      missionOnLine();         
+      break;
+    case PACKAGE_SEARCH:    
+      missionPackageSearch();  
+      break;
+    case DELIVER_PACKAGE:   
+      missionDeliverPackage(); 
+      break;
+    case MANUAL:  
+      if(firstMission) {
+        firstMission = false;
+        conducteur.SetSpeed(maxSpeed);
+      }     
+      break;
+    case UNTIL:
+      missionDriveUntil();
+      break;
+    case ARRIVED:
+      anneau.RainbowRing();
+      break;
   }
 }
 
-void fWaitingState() {
-  if(firstFollow) {
-    firstFollow = false;
+void missionCountdown() {
+  if (firstMission) {
+    firstMission = false;
+    countdownTimer = currentTime;
+    countdownValue = 3;
+
+    conducteur.SetSpeed(normalSpeed);
+    conducteur.SetTurnSpeed(turnSpeed);
+
+    anneau.fullLeds(10, 0, 0);
+    Serial.println("3");
   }
-  bool onLineTransition = conducteur.GetFState() == ON_LINE;
-  bool offLineTransition = conducteur.GetFState() == NO_LINE;
-  bool intersectionTransition = conducteur.GetFState() == INTERSECTION;
-  bool deliveryTransition = conducteur.IsDeliveryDone();
 
-  if (onLineTransition) { SetFState(ONLINE); return; }
-  if (offLineTransition) { SetFState(OFFLINE); return; }
-  if (intersectionTransition) { SetFState(INTERSECT); return; }
-  if (deliveryTransition) { SetFState(DELIVERY); }
+  if (currentTime - countdownTimer < 1000) return;
+  countdownTimer = currentTime;
+  countdownValue--;
+
+  if (countdownValue == 2) {
+    Serial.println("2");
+  }
+  else if (countdownValue == 1) {
+    anneau.fullLeds(10, 10, 0);
+    Serial.println("1");
+  }
+  else if (countdownValue == 0) {
+    anneau.fullLeds(0, 10, 0);
+    Serial.println("GO!");
+
+    SetMState(FIND_LINE);
+  }
 }
 
-void fOnLineState() {
+void missionFindLine() {
 
+  switch(findState) {
+    case INIT:
+      findInit();      
+      break;
+    case WAITING:
+      findWaiting();
+      break;
+    case TURNING:
+      findTurning();
+      break;
+  }
 }
+void findInit() {
+  if(firstFind) {
+    firstFind = false;
 
-void fOffLineState() {
+    conducteur.SetTrackerPID(0,0,0);
+    conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
+    conducteur.SetDriveMode(FREE);
+    conducteur.SetState(FORWARD);
+    conducteur.SetSpeed(normalSpeed);
+  }
 
+  if (conducteur.IsIntersection()) {
+    SetFindState(WAITING);
+  }
 }
+void findWaiting() {
+  static unsigned long lastTime = 0;
 
-void fIntersectionState() {
+  if(firstFind) {
+    firstFind = false;
 
+    lastTime = currentTime;
+  }
+
+  if(currentTime - lastTime < turnDelay) return;
+
+  conducteur.SetState(STOP);
+  SetFindState(TURNING);
 }
-
-void fDeliveryState() {
-  if(firstFollow) {
-    firstFollow = false;
+void findTurning() {
+  if(firstFind) {
+    firstFind = false;
 
     conducteur.SetAngle(90);
+    conducteur.SetDriveMode(DISTANCE);
+    conducteur.SetState(RTURNING);
+  }
+
+  if(conducteur.GetState() == STOP) {
+    conducteur.SetTrackerPID(trackerKp, trackerKi, trackerKd);
+    conducteur.SetGyroPID(0, 0, 0);
+
+    firstFind = true;
+    SetMState(CHECKPOINT);
+  }
+}
+
+
+
+
+
+
+
+
+void missionCheckpoint() {
+  countCheckpoint++;
+  newCheckpoint = true;
+  SetMState(M_ON_LINE);
+}
+
+void missionOnLine() {
+  static bool packageReady = true;
+
+  if(firstMission) {
+    firstMission = false;
+
+    conducteur.SetState(FOLLOW);
+  }
+
+  if(dist < slowDist && packageReady) {
+    conducteur.SetState(STOP);
+    packageReady = false;
+    SetMState(PACKAGE_SEARCH);
+  }
+
+  if(conducteur.IsDeliveryDone()) {
+    conducteur.SetState(STOP);
+    SetMState(DELIVER_PACKAGE);
+  }
+}
+
+void missionPackageSearch() {
+  switch (psState) {
+    case PS_INIT:
+      psInit();
+      break;
+    case PS_APPROACH:
+      psApproach();
+      break;
+    case PS_RETURN:
+      psReturn();
+      break;
+  }
+}
+void psInit() {
+  if (firstPackage) {
+    firstPackage = false;
+
+    conducteur.SetTrackerPID(0,0,0);
+    conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
+    conducteur.SetDriveMode(FREE);
+    conducteur.SetState(FORWARD);
+  }
+
+  if (conducteur.IsStableNoLine(noLineDelay)) {
+    psState = PS_APPROACH;
+    firstPackage = true;
+  }
+}
+void psApproach() {
+  if (dist < grabPackageDist) {
+    conducteur.SetState(STOP);
+    psState = PS_RETURN;
+    firstPackage = true;
+
+    anneau.SetFirstLed(11);
+    anneau.SetLastLed(5);
+    anneau.partLeds(0, 0, 10);
+  }
+}
+void psReturn() {
+  if (firstPackage) {
+    firstPackage = false;
+
+    conducteur.SetAngle(180);
+    conducteur.SetDriveMode(DISTANCE);
     conducteur.SetState(LTURNING);
+  }
+
+  if (!conducteur.GetTurnState()) return;
+
+  conducteur.SetDriveMode(FREE);
+  conducteur.SetState(FORWARD);
+
+  if (conducteur.IsCentered()) {
+    conducteur.SetTrackerPID(trackerKp, trackerKi, trackerKd);
+    conducteur.SetGyroPID(0, 0, 0);
+    conducteur.SetState(FOLLOW);
+
+    SetMState(CHECKPOINT);
+    firstPackage = true;
+  }
+}
+
+void missionDeliverPackage() {
+  if(firstMission) {
+    firstMission = false;
+
+    conducteur.SetSpeed(slowSpeed);
+    conducteur.SetAngle(90);
+    conducteur.SetDriveMode(DISTANCE);
+    conducteur.SetState(RTURNING);
   }
 
   if(!conducteur.GetTurnState()) return;
@@ -161,12 +378,30 @@ void fDeliveryState() {
   conducteur.SetDriveMode(FREE);
   conducteur.SetState(BACKWARD);
 
-  if(!conducteur.IsIntersection()) return;
+  if(!conducteur.IsNoLine()) return;
 
   conducteur.SetState(STOP);
-  //action à faire un coup la livraison terminé
-
+  SetMState(MANUAL);
 }
+
+void missionDriveUntil() {
+  bool transition = sonar.GetDist() <= distUntil;
+
+  if (firstMission) {
+    firstMission = false;
+
+    conducteur.SetDriveMode(FREE);
+    conducteur.SetState(FORWARD);
+  }
+
+  if (transition) {
+    Serial.println("STOP");
+    conducteur.SetState(STOP);
+    SetMState(ARRIVED);
+  }
+}
+
+
 
 void speedUpdate() {
     switch(speedState) {
@@ -213,89 +448,66 @@ void debugTask() {
     conducteur.DebugPrint();
 }
 
+
+
 void avance() {
-    conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
-    conducteur.SetTrackerPID(0, 0, 0);
+  conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
+  conducteur.SetTrackerPID(0, 0, 0);
 
   conducteur.SetDriveMode(FREE);
   conducteur.SetState(FORWARD);
 }
 
-void avanceAuto() {
-    bool blinkState = switchBoolTask(blinkRate);
-    conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
-    conducteur.SetTrackerPID(0, 0, 0);
-
-    if (firstAuto) {
-        firstAuto = false;
-
-        conducteur.SetDriveMode(DISTANCE);
-        conducteur.SetDistance(distance);
-        conducteur.SetState(FORWARD);
-
-        Serial.print(F("[AUTO] Distance cible: "));
-        Serial.println(distance);
-    }
-
-    blinkState ? anneau.fullLeds(10, 10, 0) : anneau.fullLeds(0, 0, 0);
-
-    if (conducteur.GetState() == STOP) {
-        Serial.println(F("[AUTO] Distance atteinte, arrêt automatique"));
-        arreterState();
-    }
-}
-
 void leftState() {
-    bool blinkState = switchBoolTask(blinkRate);
-    conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
-    conducteur.SetTrackerPID(0, 0, 0);
+  bool blinkState = switchBoolTask(blinkRate);
+  conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
+  conducteur.SetTrackerPID(0, 0, 0);
 
-    anneau.SetFirstLed(11);
-    anneau.SetLastLed(2);
+  anneau.SetFirstLed(11);
+  anneau.SetLastLed(2);
 
-    conducteur.SetDriveMode(FREE);
-    conducteur.SetState(LTURNING);
+  conducteur.SetDriveMode(FREE);
+  conducteur.SetState(LTURNING);
 
-    blinkState ? anneau.partLeds(0, 10, 0) : anneau.fullLeds(0, 0, 0);
+  blinkState ? anneau.partLeds(0, 10, 0) : anneau.fullLeds(0, 0, 0);
 }
 
 void rightState() {
-    bool blinkState = switchBoolTask(blinkRate);
-    conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
-    conducteur.SetTrackerPID(0, 0, 0);
+  bool blinkState = switchBoolTask(blinkRate);
+  conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
+  conducteur.SetTrackerPID(0, 0, 0);
 
-    anneau.SetFirstLed(2);
-    anneau.SetLastLed(5);
+  anneau.SetFirstLed(2);
+  anneau.SetLastLed(5);
 
-    conducteur.SetDriveMode(FREE);
-    conducteur.SetState(RTURNING);
+  conducteur.SetDriveMode(FREE);
+  conducteur.SetState(RTURNING);
 
-    blinkState ? anneau.partLeds(0, 10, 0) : anneau.fullLeds(0, 0, 0);
+  blinkState ? anneau.partLeds(0, 10, 0) : anneau.fullLeds(0, 0, 0);
 }
 
 void reculerState() {
-    bool buzzerState = switchBoolTask(beepRate);
-    conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
-    conducteur.SetTrackerPID(0, 0, 0);
+  bool buzzerState = switchBoolTask(beepRate);
+  conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
+  conducteur.SetTrackerPID(0, 0, 0);
 
-    conducteur.SetDriveMode(FREE);
-    conducteur.SetState(BACKWARD);
+  conducteur.SetDriveMode(FREE);
+  conducteur.SetState(BACKWARD);
 
-    buzzerState ? analogWrite(BUZZER_PIN, backwardPWM) : analogWrite(BUZZER_PIN, 0);
+  buzzerState ? analogWrite(BUZZER_PIN, backwardPWM) : analogWrite(BUZZER_PIN, 0);
 }
 
 void arreterState() {
-    conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
-    conducteur.SetTrackerPID(0, 0, 0);
+  conducteur.SetGyroPID(gyroKp, gyroKi, gyroKd);
+  conducteur.SetTrackerPID(0, 0, 0);
 
-    setAState(LIBRE);
-    conducteur.SetState(STOP);
-    analogWrite(BUZZER_PIN, 0);
+  conducteur.SetState(STOP);
+  analogWrite(BUZZER_PIN, 0);
 
 
-    anneau.SetFirstLed(5);
-    anneau.SetLastLed(11);
-    anneau.partLeds(10, 0, 0);
+  anneau.SetFirstLed(5);
+  anneau.SetLastLed(11);
+  anneau.partLeds(10, 0, 0);
 }
 
 
@@ -369,15 +581,15 @@ void handleCommand(String command) {
       break;
 
     case 'F':  //Commande FORWARD
+      if(mState != MANUAL) return
+
       Serial.print(F("Commande FORWARD reçue"));
 
-      setAState(LIBRE);
       avance();
-
-
       break;
 
     case 'B':  //Commande BACKWARD
+      if(mState != MANUAL) return
       Serial.print(F("Commande BACKWARD reçue"));
 
       reculerState();
@@ -385,6 +597,7 @@ void handleCommand(String command) {
       break;
 
     case 'R':  //Commande RIGHT
+      if(mState != MANUAL) return
       Serial.print(F("Commande RIGHT reçue"));
 
       rightState();
@@ -392,6 +605,7 @@ void handleCommand(String command) {
       break;
 
     case 'L':  //Commande LEFT
+      if(mState != MANUAL) return
       Serial.print(F("Commande LEFT reçue"));
 
       leftState();
@@ -399,6 +613,7 @@ void handleCommand(String command) {
       break;
 
     case 'S':
+      if(mState != MANUAL) return
       Serial.print(F("Commande STOP reçue"));
 
       arreterState();
@@ -406,11 +621,22 @@ void handleCommand(String command) {
       break;
 
     case 'C':
-        Serial.print(F("Commande CALIBRATION reçue"));
-        conducteur.SetGyroPID(0, 0, 0);
-        conducteur.SetTrackerPID(trackerKp, trackerKi, trackerKd);
-        conducteur.SetState(CALIBRATE);
-        break;
+      Serial.print(F("Commande CALIBRATION reçue"));
+      conducteur.SetGyroPID(0, 0, 0);
+      conducteur.SetTrackerPID(trackerKp, trackerKi, trackerKd);
+      conducteur.SetState(CALIBRATE);
+      break;
+
+    case 'G':
+      Serial.println(F("Commande GO reçue"));
+      Serial.println(F("Début du chrono"));
+      SetMState(COUNTDOWN);
+      break;
+
+    case 'U':
+      Serial.println(F("Commande UNTIL reçue"));
+      SetMState(UNTIL);
+
     default:
       Serial.print(F("Commande inconnue sans paramètres : "));
       Serial.println(command);
@@ -421,37 +647,25 @@ void handleCommand(String command) {
 void handleCommandWithParams(String command, String params) {
   char cmd = command[0];
   switch (cmd) {
-    case 'A':
-      // if(command != "AUTO") return;
-
-      Serial.print(F("Commande AUTO reçue avec paramètres : "));
-      Serial.println(params);
-
-      distance = params.toFloat();
-
-      setAState(AUTO);
-
-      break;
-
     case 'p':
       Serial.print(F("Commande Changement de vitesse reçue avec paramètres : "));
       Serial.println(params);
 
       normalSpeed = params.toFloat();
-
       conducteur.SetSpeed(normalSpeed);
-
       break;
 
-    case 'l':  // Commande "LIGHT" pour définir la couleur de l'anneau LED
+    case 'l':  
       Serial.print(F("Commande LIGHT reçue avec paramètres : "));
       Serial.println(params);
+
       commandLight(params);
       break;
     
     case 'P':
       Serial.print(F("Commande Set Kp reçue avec paramêtre : "));
       Serial.println(params);
+
       trackerKp = params.toDouble();
       break;
 
@@ -508,21 +722,24 @@ int countCharOccurrences(const String& str, char ch) {
   return count;
 }
 
-void setAState(avanceState s) {
-  static avanceState lastAState = LIBRE;
-  if (lastAState == s) return;
 
-  lastAState = s;
-  aState = s;
-  firstAuto = true;
+
+
+void SetMState(MissionState s) {
+  if (mState == s) return;
+
+  mState = s;
+  firstMission = true;
 }
 
-void setDState(DeliveryState s) {
-  if (fState == s) return;
+void SetFindState(FindState s) {
+    if(findState == s) return;
 
-  fState = s;
-  firstFollow = true;
+    findState = s;
+    firstFind = true;
 }
+
+
 
 bool switchBoolTask(int delay) {
   static unsigned long lastTime = 0;
@@ -534,4 +751,37 @@ bool switchBoolTask(int delay) {
     state = !state;
   }
 
-  return sta
+  return state;
+}
+
+void serialTask() {
+  static unsigned long lastPrint = 0;
+  if(currentTime - lastPrint < printDelay) return;
+  lastPrint = currentTime;
+
+  static StaticJsonDocument<128> doc;
+  doc["ts"] = currentTime / 1000.0;
+  doc["chrono"] = countdownTimer / 1000.0;
+  doc["gz"] = conducteur.GetAngleZ();
+  doc["etat"] = mState;
+  if(newCheckpoint) {
+    newCheckpoint = false;
+    doc["cp"] = countCheckpoint;
+  }
+
+  static JsonObject pwm = doc.createNestedObject("pwm");
+  pwm["l"] = conducteur.GetLeftPwm();
+  pwm["r"] = conducteur.GetRightPwm();
+
+  static JsonArray capt = doc.createNestedArray("capt");
+  capt.add(conducteur.GetTrackerVal(0));
+  capt.add(conducteur.GetTrackerVal(1));
+  capt.add(conducteur.GetTrackerVal(2));
+  capt.add(conducteur.GetTrackerVal(3));
+  capt.add(conducteur.GetTrackerVal(4));
+
+
+  static char output[256];
+  serializeJson(doc, output);
+  Serial.println(output);
+}

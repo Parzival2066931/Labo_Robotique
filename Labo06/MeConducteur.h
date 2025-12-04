@@ -31,7 +31,6 @@ enum FollowState {
   ON_LINE,
   TURN_RIGHT,
   TURN_LEFT,
-  NO_LINE,
   INTERSECTION
 };
 
@@ -95,7 +94,6 @@ private:
   void _FollowLine(int dist);
   void _Calibrate_IR();
   bool _rotateTo(double targetAngle);
-  void _noLineState();
   void _onLineState();
   void _onRightAngle();
   void _onIntersection(int dist);
@@ -137,10 +135,19 @@ public:
   bool GetTurnState() const;
   long GetDistToGo() const;
   float GetDistanceTraveled();
+  float GetAngleZ() const;
+  int GetLeftPwm() const;
+  int GetRightPwm() const;
+  double GetTrackerVal(int i) const;
+
 
   void DebugPrint();
 
-  bool IsDeliveryDone() const 
+  bool IsDeliveryDone() const;
   bool IsIntersection() const;
+  bool IsNoLine() const;
+  bool IsCentered() const;
+  bool IsStableNoLine(int delay);
+
 
 };

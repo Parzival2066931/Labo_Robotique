@@ -23,6 +23,21 @@
       "key": "c",
       "data": "C",
       "label": "Calibration"
+    },
+    {
+      "key": "g",
+      "data": "GO",
+      "label": "Mission"
+    },
+    {
+      "key": "m",
+      "data": "MAN",
+      "label": "Manual"
+    },
+    {
+      "key": "u",
+      "data": "U",
+      "label": "UntilDone"
     }
   ]
 }

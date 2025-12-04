@@ -55,7 +55,7 @@ void Conducteur::Setup() {
 
   _afterFollowDelay = 300;
   _delayRunning = false;
-  _limitDist = 40;
+  _limitDist = 50;
 
   //encodeurs
 
@@ -88,8 +88,6 @@ void Conducteur::Update(int obstacleDist = 0) {
   _encoderLeft.loop();
 
   _tracker.Update();
-
-  // DebugPrint();  
 
   switch (_cState) {
     case CALIBRATE:
@@ -147,6 +145,22 @@ int Conducteur::GetPinLeft() const {
 
 long Conducteur::GetDistToGo() const {
   return _encoderRight.distanceToGo();
+}
+
+float Conducteur::GetAngleZ() const {
+  return _gyro.getAngleZ();
+}
+
+int Conducteur::GetLeftPwm() const {
+  return _encoderLeft.getCurPwm();     
+}
+
+int Conducteur::GetRightPwm() const {
+  return _encoderRight.getCurPwm();    
+}
+
+double Conducteur::GetTrackerVal(int i) const {
+  return _tracker.GetTargetVal(i);
 }
 
 float Conducteur::GetDistanceTraveled() {
@@ -238,9 +252,6 @@ void Conducteur::_FollowLine(int dist) {
     case TURN_LEFT:
       _onRightAngle();
       break;
-    case NO_LINE:
-      _noLineState();
-      break;
     case INTERSECTION:
       _onIntersection(dist);
       break;
@@ -278,28 +289,7 @@ void Conducteur::_Calibrate_IR() {
 
   if (transition) {
     _Stop();
-    _cState = FOLLOW;
-  }
-}
-
-void Conducteur::_noLineState() {
-  static double targetAngle = 0;
-
-  if(_fSubFirstTime) {
-    _fSubFirstTime = false;
-
-    _Stop();
-    SetAngle(180);
-
-    _gyro.update();
-    double startAngle = _gyro.getAngleZ();
-    targetAngle = startAngle + _angle;
-  }
-
-  bool transition = _rotateTo(targetAngle);
-  if(transition) {
-    _Stop();
-    SetFState(ON_LINE);
+    _cState = STOP;
   }
 }
 
@@ -307,15 +297,13 @@ void Conducteur::_onLineState() {
     static unsigned long lastSeenLine = 0;
 
     if (_fSubFirstTime) {
-        _fSubFirstTime = false;
-        _trackerPid.ResetValues();
-        _trackerPid.SetTarget(0);
-        Serial.println("Entrée dans l'état ON_LINE");
+      _fSubFirstTime = false;
+      _trackerPid.ResetValues();
+      _trackerPid.SetTarget(0);
     }
 
     _tracker.Update();
 
-    // PID suivi de ligne
     _trackerPid.SetValue(_tracker.GetLinePosition());
     _trackerPid.Update();
     double correction = _trackerPid.GetCorrection();
@@ -323,26 +311,13 @@ void Conducteur::_onLineState() {
     _encoderRight.setMotorPwm(-_speed + correction);
     _encoderLeft.setMotorPwm(_speed + correction);
 
-    bool rawNoLine = _tracker.IsNoLine();
     bool rightTransition = _tracker.IsRightAngleRight();
     bool leftTransition  = _tracker.IsRightAngleLeft();
     bool intersectionTransition = _tracker.IsIntersection();
 
-    if (!rawNoLine) {
-        lastSeenLine = _currentTime;
-    }
-    bool noLineTransition = rawNoLine && (_currentTime - lastSeenLine > 100);
-
-
     if (intersectionTransition) {
-      Serial.println("Entrée dans l'état INTERSECTION");
       _iState = I_TURN_90;
       SetFState(INTERSECTION);
-      return;
-    }
-
-    if (noLineTransition) {
-      SetFState(NO_LINE);
       return;
     }
 
@@ -363,36 +338,43 @@ void Conducteur::_onRightAngle() {
     static unsigned long lastTurn = 0;
 
     if (_fSubFirstTime) {
-        _fSubFirstTime = false;
+      _fSubFirstTime = false;
 
-        _delayRunning = true;
-        lastTurn = _currentTime;
+      _delayRunning = true;
+      lastTurn = _currentTime;
 
-        int angle = (_fState == TURN_LEFT) ? -90 : 90;
-        SetAngle(angle);
+      int angle = (_fState == TURN_LEFT) ? -90 : 90;
+      SetAngle(angle);
 
-        _gyro.update();
-        double startAngle = _gyro.getAngleZ();
-        targetAngle = startAngle + _angle;
+      _gyro.update();
+      double startAngle = _gyro.getAngleZ();
+      targetAngle = startAngle + _angle;
 
-        Serial.println("Je TOURNE");
     }
 
     if (_delayRunning) {
-        if (_currentTime - lastTurn < _afterFollowDelay) {
-            _encoderRight.setMotorPwm(-_speed);
-            _encoderLeft.setMotorPwm(_speed);
-            return;
-        }
+      static bool firstTime = true;
+      if(firstTime) {
+        _encoderLeft.setPulsePos(0);
+        _encoderRight.setPulsePos(0);
 
-        _delayRunning = false;
-        _Stop();
+        int distDelay = 4;
+      }
+      if (GetDistanceTraveled() < distDelay) {
+        _encoderRight.setMotorPwm(-_speed);
+        _encoderLeft.setMotorPwm(_speed);
+        return;
+      }
+
+      firstTime = true;
+      _delayRunning = false;
+      _Stop();
     }
 
     bool transition = _rotateTo(targetAngle);
     if (transition) {
-        _Stop();
-        SetFState(ON_LINE);
+      _Stop();
+      SetFState(ON_LINE);
     }
 }
 
@@ -400,7 +382,6 @@ void Conducteur::_onIntersection(int dist) {
   switch (_iState) {
 
     case I_TURN_90:
-      Serial.println("Je tourne à gauche");
       _iFollowTurn();
       break;
 
@@ -442,15 +423,23 @@ void Conducteur::_iFollowTurn() {
   }
 
   if (_delayRunning) {
-      if (_currentTime - lastTurn < _afterFollowDelay) {
-          _encoderRight.setMotorPwm(-_speed);
-          _encoderLeft.setMotorPwm(_speed);
-          return;
-      }
+      static bool firstTime = true;
+      if(firstTime) {
+        _encoderLeft.setPulsePos(0);
+        _encoderRight.setPulsePos(0);
 
+        int distDelay = 4;
+      }
+      if (GetDistanceTraveled() < distDelay) {
+        _encoderRight.setMotorPwm(-_speed);
+        _encoderLeft.setMotorPwm(_speed);
+        return;
+      }
+      
+      firstTime = true;
       _delayRunning = false;
       _Stop();
-  }
+    }
 
   if (!_rotateTo(targetAngle)) return;
 
@@ -480,17 +469,22 @@ void Conducteur::_iDetectionTurn() {
 }
 
 void Conducteur::_iCheck1State(int dist) {
-    if (dist < _limitDist) {
-      _iState = I_TURN_180;
-      return;
-    }
-    _iState = I_NONE;
-    SetFState(ON_LINE);
+  if (dist < _limitDist) {
+    _iState = I_TURN_180;
+    return;
+  }
+  _iState = I_NONE;
+  SetFState(ON_LINE);
 }
 
 void Conducteur::_iCheck2State(int dist) {
-    if (dist < _limitDist) _deliveryDone = true;
-    _iState = I_NONE;
+  if (dist < _limitDist) { 
+    _deliveryDone = true; 
+    SetState(STOP);
+  }
+  else {
+    SetFState(ON_LINE);
+  }
 }
 
 
@@ -504,15 +498,15 @@ void Conducteur::_TurnRight() {
 void Conducteur::_TurnRightTo() {
     static double targetAngle = 0;
 
-    if (firstTime) {
-        _firstTime = false;
-        _turnSuccess = false;
+    if (_firstTime) {
+      _firstTime = false;
+      _turnSuccess = false;
 
-        _gyro.update();
-        double start = _gyro.getAngleZ();
+      _gyro.update();
+      double start = _gyro.getAngleZ();
 
-        SetAngle(_angle);               
-        targetAngle = start + _angle;
+      SetAngle(_angle);               
+      targetAngle = start + _angle;
     }
 
     if (!_rotateTo(targetAngle)) return;
@@ -530,26 +524,26 @@ void Conducteur::_TurnLeft() {
 }
 
 void Conducteur::_TurnLeftTo() {
-    static double targetAngle = 0;
+  static double targetAngle = 0;
 
-    if (firstTime) {
-      _firstTime = false;
-      _turnSuccess = false;
+  if (_firstTime) {
+    _firstTime = false;
+    _turnSuccess = false;
 
-      _gyro.update();
-      double start = _gyro.getAngleZ();
+    _gyro.update();
+    double start = _gyro.getAngleZ();
 
-      targetAngle = start - _angle;
-    }
+    targetAngle = start - _angle;
+  }
 
-    if (!_rotateTo(targetAngle)) return;
+  if (!_rotateTo(targetAngle)) return;
+  _turnSuccess = true;
+  _cState = STOP;
 
-    _turnSuccess = true;
-    _cState = STOP;
-
-    _gyroPid.ResetValues();
-    _gyroPid.SetTarget(_gyro.getAngleZ());
+  _gyroPid.ResetValues();
+  _gyroPid.SetTarget(_gyro.getAngleZ());
 }
+
 
 void Conducteur::SetAngle(int angle) {
   _angle = angle;
@@ -647,3 +641,24 @@ bool Conducteur::_rotateTo(double targetAngle) {
 bool Conducteur::IsDeliveryDone() const { return _deliveryDone; }
 
 bool Conducteur::IsIntersection() const { return _tracker.IsIntersection(); }
+
+bool Conducteur::IsCentered() const { return _tracker.IsCentered(); }
+
+bool Conducteur::IsNoLine() const { return _tracker.IsNoLine(); }
+
+bool Conducteur::IsStableNoLine(int delay) {
+  static unsigned long lastNoLineTime = 0;
+
+  if (_tracker.IsNoLine()) {
+    if (lastNoLineTime == 0)
+      lastNoLineTime = _currentTime;
+
+    if (_currentTime - lastNoLineTime >= delay)
+      return true;
+
+    return false;
+  }
+
+  lastNoLineTime = 0;
+  return false;
+}
