@@ -12,7 +12,8 @@ bool firstAuto = true;
 bool firstFollow = true;
 bool firstVigilance = true;
 
-unsigned long countdownTimer = 0;
+unsigned long chronoStart = 0;
+unsigned long chronoEnd = 0;
 bool firstMission = true;
 int countdownValue = 3;
 int countCheckpoint = 0;
@@ -21,12 +22,13 @@ bool hasPackage = false;
 int turnDelay = 300;
 int noLineDelay = 150;
 int distUntil = 10; 
+int firstLed = 6;
 
 bool firstFind = true;
 bool firstPackage = true;
 
 
-float normalSpeed = 100;
+float normalSpeed = 125;
 float slowSpeed = 50;
 float turnSpeed = 70;
 float minSpeed = 50;
@@ -41,9 +43,9 @@ const int beepRate = 500;
 const int backwardPWM = 200;
 const int klaxonFreq = 420;
 
-double trackerKp = 0.4;
-double trackerKi = 0.01;
-double trackerKd = 0.01;
+double trackerKp = 0.5;
+double trackerKi = 0;
+double trackerKd = 0;
 
 double gyroKp = 9;
 double gyroKi = 1;
@@ -60,8 +62,8 @@ ezBuzzer buzzer(BUZZER_PIN);
 
 
 enum CruzeControlState {
-    NORMAL,
-    VIGILANCE
+  NORMAL,
+  VIGILANCE
 };
 CruzeControlState speedState = NORMAL;
 
@@ -119,6 +121,7 @@ void setup() {
 
 void loop() {
   currentTime = millis();
+  if(mState != ARRIVED) chronoEnd = currentTime;
 
   
 
@@ -176,7 +179,7 @@ void missionUpdate() {
 void missionCountdown() {
   if (firstMission) {
     firstMission = false;
-    countdownTimer = currentTime;
+    chronoStart = currentTime;
     countdownValue = 3;
 
     conducteur.SetSpeed(normalSpeed);
@@ -186,8 +189,8 @@ void missionCountdown() {
     Serial.println("3");
   }
 
-  if (currentTime - countdownTimer < 1000) return;
-  countdownTimer = currentTime;
+  if (currentTime - chronoStart < 1000) return;
+  chronoStart = currentTime;
   countdownValue--;
 
   if (countdownValue == 2) {
@@ -276,6 +279,9 @@ void findTurning() {
 void missionCheckpoint() {
   countCheckpoint++;
   newCheckpoint = true;
+  anneau.SetFirstLed(firstLed);
+  anneau.SetLastLed(firstLed + countCheckpoint);
+  anneau.halfLeds(50, 0, 50);
   SetMState(M_ON_LINE);
 }
 
@@ -293,6 +299,8 @@ void missionOnLine() {
     packageReady = false;
     SetMState(PACKAGE_SEARCH);
   }
+
+  if(conducteur.IsIntersection()) SetMState(CHECKPOINT);
 
   if(conducteur.IsDeliveryDone()) {
     conducteur.SetState(STOP);
@@ -336,7 +344,7 @@ void psApproach() {
 
     anneau.SetFirstLed(11);
     anneau.SetLastLed(5);
-    anneau.partLeds(0, 0, 10);
+    anneau.halfLeds(20, 10, 0);
   }
 }
 void psReturn() {
@@ -380,6 +388,16 @@ void missionDeliverPackage() {
 
   if(!conducteur.IsNoLine()) return;
 
+  anneau.SetFirstLed(11);
+  anneau.SetLastLed(5);
+  anneau.halfLeds(0, 10, 0);
+
+  countCheckpoint++;
+  newCheckpoint = true;
+  anneau.SetFirstLed(firstLed);
+  anneau.SetLastLed(firstLed + countCheckpoint);
+  anneau.halfLeds(50, 0, 50);
+
   conducteur.SetState(STOP);
   SetMState(MANUAL);
 }
@@ -389,6 +407,12 @@ void missionDriveUntil() {
 
   if (firstMission) {
     firstMission = false;
+
+    countCheckpoint++;
+    newCheckpoint = true;
+    anneau.SetFirstLed(firstLed);
+    anneau.SetLastLed(firstLed + countCheckpoint);
+    anneau.halfLeds(50, 0, 50);
 
     conducteur.SetDriveMode(FREE);
     conducteur.SetState(FORWARD);
@@ -760,8 +784,8 @@ void serialTask() {
   lastPrint = currentTime;
 
   static StaticJsonDocument<128> doc;
-  doc["ts"] = currentTime / 1000.0;
-  doc["chrono"] = countdownTimer / 1000.0;
+  doc["ts"] = currentTime;
+  doc["chrono"] = chronoEnd - chronoStart;
   doc["gz"] = conducteur.GetAngleZ();
   doc["etat"] = mState;
   if(newCheckpoint) {

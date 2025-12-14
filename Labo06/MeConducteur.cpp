@@ -334,48 +334,40 @@ void Conducteur::_onLineState() {
 
 
 void Conducteur::_onRightAngle() {
-    static double targetAngle = 0;
-    static unsigned long lastTurn = 0;
+  static double targetAngle = 0;
+  static unsigned long lastTurn = 0;
+  int distDelay = 4;
 
-    if (_fSubFirstTime) {
-      _fSubFirstTime = false;
+  if (_fSubFirstTime) {
+    _fSubFirstTime = false;
 
-      _delayRunning = true;
-      lastTurn = _currentTime;
+    _delayRunning = true;
+    lastTurn = _currentTime;
 
-      int angle = (_fState == TURN_LEFT) ? -90 : 90;
-      SetAngle(angle);
+    int angle = (_fState == TURN_LEFT) ? -90 : 90;
+    SetAngle(angle);
 
-      _gyro.update();
-      double startAngle = _gyro.getAngleZ();
-      targetAngle = startAngle + _angle;
+    _gyro.update();
+    double startAngle = _gyro.getAngleZ();
+    targetAngle = startAngle + _angle;
 
+  }
+
+  if (_delayRunning) {
+    if (_currentTime - lastTurn < _afterFollowDelay) {
+      _encoderRight.setMotorPwm(-_speed);
+      _encoderLeft.setMotorPwm(_speed);
+      return;
     }
+    _delayRunning = false;
+    _Stop();
+  }
 
-    if (_delayRunning) {
-      static bool firstTime = true;
-      if(firstTime) {
-        _encoderLeft.setPulsePos(0);
-        _encoderRight.setPulsePos(0);
-
-        int distDelay = 4;
-      }
-      if (GetDistanceTraveled() < distDelay) {
-        _encoderRight.setMotorPwm(-_speed);
-        _encoderLeft.setMotorPwm(_speed);
-        return;
-      }
-
-      firstTime = true;
-      _delayRunning = false;
-      _Stop();
-    }
-
-    bool transition = _rotateTo(targetAngle);
-    if (transition) {
-      _Stop();
-      SetFState(ON_LINE);
-    }
+  bool transition = _rotateTo(targetAngle);
+  if (transition) {
+    _Stop();
+    SetFState(ON_LINE);
+  }
 }
 
 void Conducteur::_onIntersection(int dist) {
@@ -409,6 +401,7 @@ void Conducteur::_iFollowTurn() {
   static double targetAngle = 0;
   static bool firstTime = true;
   static unsigned long lastTurn = 0;
+  int distDelay = 4;
 
   if (firstTime) {
     firstTime = false;
@@ -423,23 +416,14 @@ void Conducteur::_iFollowTurn() {
   }
 
   if (_delayRunning) {
-      static bool firstTime = true;
-      if(firstTime) {
-        _encoderLeft.setPulsePos(0);
-        _encoderRight.setPulsePos(0);
-
-        int distDelay = 4;
-      }
-      if (GetDistanceTraveled() < distDelay) {
-        _encoderRight.setMotorPwm(-_speed);
-        _encoderLeft.setMotorPwm(_speed);
-        return;
-      }
-      
-      firstTime = true;
-      _delayRunning = false;
-      _Stop();
+    if (_currentTime - lastTurn < _afterFollowDelay) {
+      _encoderRight.setMotorPwm(-_speed);
+      _encoderLeft.setMotorPwm(_speed);
+      return;
     }
+    _delayRunning = false;
+    _Stop();
+  }
 
   if (!_rotateTo(targetAngle)) return;
 
@@ -620,22 +604,22 @@ void Conducteur::DebugPrint() {
 }
 
 bool Conducteur::_rotateTo(double targetAngle) {
-    _gyro.update();
-    float current = _gyro.getAngleZ();
+  _gyro.update();
+  float current = _gyro.getAngleZ();
 
-    float delta = current - targetAngle;
-    if (delta > 180) delta -= 360;
-    if (delta < -180) delta += 360;
+  float delta = current - targetAngle;
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
 
-    bool reached = (fabs(delta) <= 2);
+  bool reached = (fabs(delta) <= 2);
 
-    if (!reached) {
-      int speed = (delta > 0) ? -_turnSpeed : _turnSpeed;
-      _encoderRight.setMotorPwm(speed);
-      _encoderLeft.setMotorPwm(speed);
-    }
+  if (!reached) {
+    int speed = (delta > 0) ? -_turnSpeed : _turnSpeed;
+    _encoderRight.setMotorPwm(speed);
+    _encoderLeft.setMotorPwm(speed);
+  }
 
-    return reached;
+  return reached;
 }
 
 bool Conducteur::IsDeliveryDone() const { return _deliveryDone; }
