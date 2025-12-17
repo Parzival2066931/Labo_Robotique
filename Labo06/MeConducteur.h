@@ -148,6 +148,4 @@ public:
   bool IsNoLine() const;
   bool IsCentered() const;
   bool IsStableNoLine(int delay);
-
-
 };

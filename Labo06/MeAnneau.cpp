@@ -74,6 +74,7 @@ void Anneau::oneLed(int i, int r, int g, int b) {
 
 void Anneau::offLeds() {
   SetColor(0, LEDNUM, 0, 0, 0);
+  _led.show();
 }
 
 void Anneau::trailLed(int r, int g, int b, bool sensHoraire) {

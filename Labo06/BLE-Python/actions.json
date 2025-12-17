@@ -1,0 +1,43 @@
+{
+  "header": [255, 85],
+  "directions": {
+    "w": "F",
+    "a": "L",
+    "s": "B",
+    "d": "R",
+    "e": "k",
+    "stop": "S"
+  },
+  "actions": [
+    {
+      "key": "d",
+      "data": "d",
+      "label": "Debug"
+    },
+    {
+      "key": "stop",
+      "data": "S",
+      "label": "Stop"
+    },
+    {
+      "key": "c",
+      "data": "C",
+      "label": "Calibration"
+    },
+    {
+      "key": "g",
+      "data": "GO",
+      "label": "Mission"
+    },
+    {
+      "key": "m",
+      "data": "MAN",
+      "label": "Manual"
+    },
+    {
+      "key": "u",
+      "data": "U",
+      "label": "UntilDone"
+    }
+  ]
+}
