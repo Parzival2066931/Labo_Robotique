@@ -38,7 +38,7 @@ float slowSpeed = 50;
 float turnSpeed = 70;
 float minSpeed = 50;
 float maxSpeed = 255;
-int slowDist = 50;
+int slowDist = 35;
 int grabPackageDist = 20;
 int dist;
 int printDelay = 1000;
